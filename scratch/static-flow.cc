@@ -25,27 +25,58 @@ using namespace ns3;
 using namespace std;
 
 // Constants.
-#define ENABLE_PCAP      true     // Set to "true" to enable pcap
+#define ENABLE_PCAP      false     // Set to "true" to enable pcap
 #define ENABLE_TRACE     false     // Set to "true" to enable trace
-#define QUEUE_SIZE       333333   // Packets (50MB=33.3kMTU)*1/2/4/10/20/40/80
+//#define QUEUE_SIZE       333333   // Packets (50MB=33.3kMTU)*1/2/4/10/20/40/80
 #define START_TIME       0.0       // Seconds
 #define STOP_TIME        5.0       // Seconds
-#define S_TO_R_BW        "100Gbps" // Server to router
-#define S_TO_R_DELAY     "50ms"
-#define R_TO_C_BW        "100Gbps"  // Router to client (bttlneck)
-#define R_TO_C_DELAY     "50ms"
+#define S_TO_R_BW        "10Gbps" // Server to router
+#define S_TO_R_DELAY     "10ms"
+#define R_TO_C_BW        "10Gbps"  // Router to client (bttlneck)
+#define R_TO_C_DELAY     "10ms"
 #define PACKET_SIZE      1448      // Bytes.
-#define FLOW_NUM         100   // n of n-to-1 (incast degree)
+#define FLOW_NUM         200   // n of n-to-1 (incast degree)
 
 // Uncomment one of the below.
 //#define TCP_PROTOCOL     "ns3::TcpCubic"
-#define TCP_PROTOCOL     "ns3::TcpBbr"
+//#define TCP_PROTOCOL     "ns3::TcpBbr"
+
+int drop_count=0;
+
+void PrintTimeNow() {
+  std::cout << "Time: ";
+  std::cout << Simulator::Now().GetSeconds() << std::endl;
+  Simulator::Schedule(MilliSeconds(100), &PrintTimeNow);
+}
+
+static void
+QueueDropTrace (Ptr<const Packet> p)
+{
+  drop_count++;
+  std::cout << "Time: " << Simulator::Now ().GetSeconds () << ". Packet drop #: " << drop_count << std::endl;
+}
+
+void
+PacketsInQueueTrace (Ptr<OutputStreamWrapper> stream, unsigned int oldValue, unsigned int newValue)
+{
+  *stream->GetStream() << Simulator::Now().GetSeconds()  << " " << oldValue << " " << newValue << std::endl;
+  std::cout << "Time: " << Simulator::Now().GetSeconds()  << ". Queue length from " << oldValue << " to " << newValue << std::endl;
+}
 
 // For logging. 
 
 NS_LOG_COMPONENT_DEFINE ("main");
 /////////////////////////////////////////////////
 int main (int argc, char *argv[]) {
+
+  CommandLine cmd;
+  string tcp_protocol="ns3::TcpBbr";
+  int buffer_size = 1000;
+  cmd.AddValue("protocol", "Transport protocol in use", tcp_protocol);
+  cmd.AddValue("bSize", "Buffer size in packets", buffer_size);
+  cmd.Parse (argc, argv);
+
+  string file_prefix = tcp_protocol+"-buf"+to_string(buffer_size);
 
   /////////////////////////////////////////
   // Turn on logging for this script.
@@ -56,10 +87,10 @@ int main (int argc, char *argv[]) {
   /////////////////////////////////////////
   // Setup environment
   Config::SetDefault("ns3::TcpL4Protocol::SocketType",
-                     StringValue(TCP_PROTOCOL));
+                     StringValue(tcp_protocol));
 
   // Report parameters.
-  NS_LOG_INFO("TCP protocol: " << TCP_PROTOCOL);
+  NS_LOG_INFO("TCP protocol: " << tcp_protocol);
   NS_LOG_INFO("Flow #: " << FLOW_NUM);
   NS_LOG_INFO("Server to Router Bwdth: " << S_TO_R_BW);
   NS_LOG_INFO("Server to Router Delay: " << S_TO_R_DELAY);
@@ -117,10 +148,10 @@ int main (int argc, char *argv[]) {
   p2p.SetDeviceAttribute("DataRate", StringValue (S_TO_R_BW));
   p2p.SetChannelAttribute("Delay", StringValue (S_TO_R_DELAY));
   p2p.SetDeviceAttribute ("Mtu", UintegerValue(mtu));
-  NS_LOG_INFO("Router queue size: "<< QUEUE_SIZE);
+  NS_LOG_INFO("Router queue size: "<< buffer_size);
   p2p.SetQueue("ns3::DropTailQueue",
                "Mode", StringValue ("QUEUE_MODE_PACKETS"),
-               "MaxPackets", UintegerValue(QUEUE_SIZE));
+               "MaxPackets", UintegerValue(buffer_size));
   vector<NetDeviceContainer> devices;
   for (int i=0; i<FLOW_NUM; i++)
     devices.push_back(p2p.Install(s_to_r[i]));
@@ -131,8 +162,14 @@ int main (int argc, char *argv[]) {
   p2p.SetDeviceAttribute ("Mtu", UintegerValue(mtu));
   p2p.SetQueue("ns3::DropTailQueue",
                "Mode", StringValue ("QUEUE_MODE_PACKETS"),
-               "MaxPackets", UintegerValue(QUEUE_SIZE));
+               "MaxPackets", UintegerValue(buffer_size));
   NetDeviceContainer devices2 = p2p.Install(r_to_n1);
+
+  AsciiTraceHelper asciiTraceHelper;
+  Ptr<Queue<Packet> > queue = StaticCast<PointToPointNetDevice> (devices2.Get (0))->GetQueue ();
+  Ptr<OutputStreamWrapper> stream = asciiTraceHelper.CreateFileStream (file_prefix+"-queue.tr");
+  queue->TraceConnectWithoutContext ("PacketsInQueue", MakeBoundCallback (&PacketsInQueueTrace, stream));
+  queue->TraceConnectWithoutContext ("Drop", MakeCallback (&QueueDropTrace));
 
   /////////////////////////////////////////
   // Install Internet stack.
@@ -154,6 +191,8 @@ int main (int argc, char *argv[]) {
   ipv4.SetBase("191.168.1.0", "255.255.255.0");
   Ipv4InterfaceContainer i1i2 = ipv4.Assign(devices2);
 
+  // To-be-optimized: time consuming when FLOW_NUM>1000
+  NS_LOG_INFO("Populating Routing Tables.");
   Ipv4GlobalRoutingHelper::PopulateRoutingTables();
 
   /////////////////////////////////////////
@@ -190,13 +229,14 @@ int main (int argc, char *argv[]) {
   if (ENABLE_TRACE) {
     NS_LOG_INFO("Enabling trace files.");
     AsciiTraceHelper ath;
-    p2p.EnableAsciiAll(ath.CreateFileStream(TCP_PROTOCOL"-trace.tr"));
+    p2p.EnableAsciiAll(ath.CreateFileStream(file_prefix+"-trace.tr"));
   }  
   if (ENABLE_PCAP) {
     NS_LOG_INFO("Enabling pcap files.");
-    p2p.EnablePcapAll(TCP_PROTOCOL"-shark", true);
+    p2p.EnablePcapAll(file_prefix+"-shark", true);
   }
 
+  Simulator::ScheduleNow(&PrintTimeNow);
   /////////////////////////////////////////
   // Run simulation.
   NS_LOG_INFO("Running simulation.");
