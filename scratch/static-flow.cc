@@ -206,7 +206,10 @@ int main (int argc, char *argv[]) {
   uint16_t port = 911;  
 
   vector<Ptr<PacketSink>> p_sink;
+  vector<double> start_time;
   for (int i=0; i<FLOW_NUM; i++) {
+    start_time.push_back(START_TIME+0.2*(float)rand()/RAND_MAX);
+
     // Source (at node i).
     BulkSendHelper source("ns3::TcpSocketFactory",
                           InetSocketAddress(i1i2.GetAddress(1), port+i));
@@ -214,14 +217,14 @@ int main (int argc, char *argv[]) {
     source.SetAttribute("MaxBytes", UintegerValue(0));
     source.SetAttribute("SendSize", UintegerValue(PACKET_SIZE));
     ApplicationContainer apps = source.Install(nodes.Get(i));
-    apps.Start(Seconds(START_TIME+0.2*(float)rand()/RAND_MAX));
+    apps.Start(Seconds(start_time[i]));
     apps.Stop(Seconds(STOP_TIME));
 
     // Sink (at node n+1).
     PacketSinkHelper sink("ns3::TcpSocketFactory",
                           InetSocketAddress(Ipv4Address::GetAny(), port+i));
     apps = sink.Install(nodes.Get(FLOW_NUM+1));
-    apps.Start(Seconds(START_TIME+0.2*(float)rand()/RAND_MAX));
+    apps.Start(Seconds(START_TIME));
     apps.Stop(Seconds(STOP_TIME));
     p_sink.push_back(DynamicCast<PacketSink> (apps.Get(0))); // 4 stats
   }
@@ -257,7 +260,7 @@ int main (int argc, char *argv[]) {
   vector<double> tput(FLOW_NUM, 0.0);
   for (int i=0; i<FLOW_NUM; i++) {
     byte_sum += p_sink[i]->GetTotalRx();
-    tput[i] = p_sink[i]->GetTotalRx() / (STOP_TIME - START_TIME);
+    tput[i] = p_sink[i]->GetTotalRx() / (STOP_TIME - start_time[i]);
     tput[i] *= 8;          // Convert to bits.
     tput[i] /= 1000000.0;  // Convert to Mb/s
     tput_sum += tput[i];
