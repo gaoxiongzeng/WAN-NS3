@@ -20,51 +20,39 @@
 #include "ns3/network-module.h"
 #include "ns3/packet-sink.h"
 #include "ns3/ipv4-global-routing-helper.h"
+#include "ns3/traffic-control-module.h"
 
 using namespace ns3;
 using namespace std;
 
-// Constants.
 #define ENABLE_PCAP      false     // Set to "true" to enable pcap
 #define ENABLE_TRACE     false     // Set to "true" to enable trace
-//#define QUEUE_SIZE       333333   // Packets (50MB=33.3kMTU)*1/2/4/10/20/40/80
 #define START_TIME       0.0       // Seconds
-#define STOP_TIME        5.0       // Seconds
+#define STOP_TIME        3.0       // Seconds
 #define S_TO_R_BW        "10Gbps" // Server to router
 #define S_TO_R_DELAY     "10ms"
 #define R_TO_C_BW        "10Gbps"  // Router to client (bttlneck)
 #define R_TO_C_DELAY     "10ms"
 #define PACKET_SIZE      1448      // Bytes.
-#define FLOW_NUM         200   // n of n-to-1 (incast degree)
+#define FLOW_NUM         20   // n of n-to-1 (incast degree)
 
-// Uncomment one of the below.
-//#define TCP_PROTOCOL     "ns3::TcpCubic"
-//#define TCP_PROTOCOL     "ns3::TcpBbr"
-
-int drop_count=0;
-
-void PrintTimeNow() {
-  std::cout << "Time: ";
-  std::cout << Simulator::Now().GetSeconds() << std::endl;
-  Simulator::Schedule(MilliSeconds(100), &PrintTimeNow);
+void PeriodicPrint(Ptr<QueueDisc> queue) {
+  std::cout << "Time: " << Simulator::Now().GetSeconds();
+  std::cout << " Queue: " << queue->GetNPackets();
+  std::cout << " Packet drop: " << queue->GetStats().nTotalDroppedPackets << std::endl;
+  Simulator::Schedule(MilliSeconds(1), &PeriodicPrint, queue);
 }
 
-static void
-QueueDropTrace (Ptr<const Packet> p)
-{
-  drop_count++;
-  std::cout << "Time: " << Simulator::Now ().GetSeconds () << ". Packet drop #: " << drop_count << std::endl;
+static void QueueDropTrace (Ptr<const Packet> p) {
+  std::cout << "Time: " << Simulator::Now ().GetSeconds () << ". Packet drop!!!" << std::endl;
 }
 
-void
-PacketsInQueueTrace (Ptr<OutputStreamWrapper> stream, unsigned int oldValue, unsigned int newValue)
-{
+void PacketsInQueueTrace (Ptr<OutputStreamWrapper> stream, unsigned int oldValue, unsigned int newValue) {
   *stream->GetStream() << Simulator::Now().GetSeconds()  << " " << oldValue << " " << newValue << std::endl;
   std::cout << "Time: " << Simulator::Now().GetSeconds()  << ". Queue length from " << oldValue << " to " << newValue << std::endl;
 }
 
 // For logging. 
-
 NS_LOG_COMPONENT_DEFINE ("main");
 /////////////////////////////////////////////////
 int main (int argc, char *argv[]) {
@@ -120,17 +108,27 @@ int main (int argc, char *argv[]) {
  
   // More config.
   // If BDP>>10, Try use a larger initial window, e.g., 40 pkts, to speed up simulation.
-  Config::SetDefault ("ns3::TcpSocket::InitialCwnd", UintegerValue (10));
+  Config::SetDefault ("ns3::TcpSocket::InitialCwnd", UintegerValue (40));
   Config::SetDefault ("ns3::TcpSocket::ConnTimeout", TimeValue (MilliSeconds (500)));
   Config::SetDefault ("ns3::TcpSocketBase::MinRto", TimeValue (MilliSeconds (100)));
   Config::SetDefault ("ns3::TcpSocketBase::ClockGranularity", TimeValue (MicroSeconds (100)));
   Config::SetDefault ("ns3::RttEstimator::InitialEstimation", TimeValue (MilliSeconds (300)));
+
+  Config::SetDefault ("ns3::RedQueueDisc::QueueLimit", UintegerValue (buffer_size));
 
   /////////////////////////////////////////
   // Create nodes.
   NS_LOG_INFO("Creating nodes.");
   NodeContainer nodes;  // 0-(n-1)=source, n=router, n+1=sink
   nodes.Create(FLOW_NUM+2);
+
+  /////////////////////////////////////////
+  // Install Internet stack.
+  NS_LOG_INFO("Installing Internet stack.");
+  InternetStackHelper internet;
+  Ipv4GlobalRoutingHelper globalRoutingHelper;
+  internet.SetRoutingHelper (globalRoutingHelper);
+  internet.Install(nodes);
 
   /////////////////////////////////////////
   // Create channels.
@@ -167,19 +165,11 @@ int main (int argc, char *argv[]) {
                "MaxPackets", UintegerValue(buffer_size));
   NetDeviceContainer devices2 = p2p.Install(r_to_n1);
 
-  AsciiTraceHelper asciiTraceHelper;
-  Ptr<Queue<Packet> > queue = StaticCast<PointToPointNetDevice> (devices2.Get (0))->GetQueue ();
-  Ptr<OutputStreamWrapper> stream = asciiTraceHelper.CreateFileStream (file_prefix+"-queue.tr");
-  queue->TraceConnectWithoutContext ("PacketsInQueue", MakeBoundCallback (&PacketsInQueueTrace, stream));
-  queue->TraceConnectWithoutContext ("Drop", MakeCallback (&QueueDropTrace));
-
-  /////////////////////////////////////////
-  // Install Internet stack.
-  NS_LOG_INFO("Installing Internet stack.");
-  InternetStackHelper internet;
-  Ipv4GlobalRoutingHelper globalRoutingHelper;
-  internet.SetRoutingHelper (globalRoutingHelper);
-  internet.Install(nodes);
+  // Bottleneck queue to be monitored
+  Ptr<Queue<Packet> > bottleneck_queue = StaticCast<PointToPointNetDevice> (devices2.Get (0))->GetQueue ();
+  TrafficControlHelper tc;
+  tc.SetRootQueueDisc ("ns3::RedQueueDisc");
+  QueueDiscContainer bottleneck_qdisc = tc.Install (devices2);
   
   /////////////////////////////////////////
   // Add IP addresses.
@@ -208,6 +198,7 @@ int main (int argc, char *argv[]) {
   vector<Ptr<PacketSink>> p_sink;
   vector<double> start_time;
   for (int i=0; i<FLOW_NUM; i++) {
+    // desynchronize the flow start time
     start_time.push_back(START_TIME+0.2*(float)rand()/RAND_MAX);
 
     // Source (at node i).
@@ -233,15 +224,19 @@ int main (int argc, char *argv[]) {
   // Setup tracing (as appropriate).
   if (ENABLE_TRACE) {
     NS_LOG_INFO("Enabling trace files.");
-    AsciiTraceHelper ath;
-    p2p.EnableAsciiAll(ath.CreateFileStream(file_prefix+"-trace.tr"));
+    AsciiTraceHelper asciiTraceHelper;
+    p2p.EnableAsciiAll(asciiTraceHelper.CreateFileStream(file_prefix+"-trace.tr"));
+    Ptr<OutputStreamWrapper> stream = asciiTraceHelper.CreateFileStream (file_prefix+"-queue.tr");
+    bottleneck_queue->TraceConnectWithoutContext ("PacketsInQueue", MakeBoundCallback (&PacketsInQueueTrace, stream));
+    bottleneck_queue->TraceConnectWithoutContext ("Drop", MakeCallback (&QueueDropTrace));
   }  
   if (ENABLE_PCAP) {
     NS_LOG_INFO("Enabling pcap files.");
     p2p.EnablePcapAll(file_prefix+"-shark", true);
   }
 
-  Simulator::ScheduleNow(&PrintTimeNow);
+  Simulator::ScheduleNow(&PeriodicPrint, bottleneck_qdisc.Get (0));
+
   /////////////////////////////////////////
   // Run simulation.
   NS_LOG_INFO("Running simulation.");
