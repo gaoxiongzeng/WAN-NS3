@@ -34,7 +34,7 @@ using namespace std;
 #define R_TO_C_BW        "10Gbps"  // Router to client (bttlneck)
 #define R_TO_C_DELAY     "10ms"
 #define PACKET_SIZE      1448      // Bytes.
-#define FLOW_NUM         20   // n of n-to-1 (incast degree)
+#define FLOW_NUM         200   // n of n-to-1 (incast degree)
 
 void PeriodicPrint(vector<Ptr<PacketSink>> p_sink, double byte_sum, Ptr<Queue<Packet> > queue, Ptr<QueueDisc> qdisc) {
   double byte_sum_new = 0.0;
