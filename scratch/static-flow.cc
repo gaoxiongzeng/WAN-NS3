@@ -28,7 +28,7 @@ using namespace std;
 #define ENABLE_PCAP      false     // Set to "true" to enable pcap
 #define ENABLE_TRACE     false     // Set to "true" to enable trace
 #define START_TIME       0.0       // Seconds
-#define STOP_TIME        3.0       // Seconds
+#define STOP_TIME        5.0       // Seconds
 #define S_TO_R_BW        "10Gbps" // Server to router
 #define S_TO_R_DELAY     "10ms"
 #define R_TO_C_BW        "10Gbps"  // Router to client (bttlneck)
@@ -36,11 +36,17 @@ using namespace std;
 #define PACKET_SIZE      1448      // Bytes.
 #define FLOW_NUM         20   // n of n-to-1 (incast degree)
 
-void PeriodicPrint(Ptr<QueueDisc> queue) {
+void PeriodicPrint(vector<Ptr<PacketSink>> p_sink, double byte_sum, Ptr<Queue<Packet> > queue, Ptr<QueueDisc> qdisc) {
+  double byte_sum_new = 0.0;
+  for (int i=0; i<FLOW_NUM; i++)
+    byte_sum_new += p_sink[i]->GetTotalRx();
+  double throughput = (byte_sum_new - byte_sum) * 8 / 1000;
   std::cout << "Time: " << Simulator::Now().GetSeconds();
+  std::cout << " Throughput: " << throughput; // Mbps
   std::cout << " Queue: " << queue->GetNPackets();
-  std::cout << " Packet drop: " << queue->GetStats().nTotalDroppedPackets << std::endl;
-  Simulator::Schedule(MilliSeconds(1), &PeriodicPrint, queue);
+  //std::cout << " Queue: " << qdisc->GetNPackets(); // This queue length is not what we want!
+  std::cout << " Packet drop: " << qdisc->GetStats().nTotalDroppedPackets << std::endl;
+  Simulator::Schedule(MilliSeconds(1), &PeriodicPrint, p_sink, byte_sum_new, queue, qdisc);
 }
 
 static void QueueDropTrace (Ptr<const Packet> p) {
@@ -235,7 +241,7 @@ int main (int argc, char *argv[]) {
     p2p.EnablePcapAll(file_prefix+"-shark", true);
   }
 
-  Simulator::ScheduleNow(&PeriodicPrint, bottleneck_qdisc.Get (0));
+  Simulator::ScheduleNow(&PeriodicPrint, p_sink, 0.0, bottleneck_queue, bottleneck_qdisc.Get (0));
 
   /////////////////////////////////////////
   // Run simulation.
