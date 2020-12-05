@@ -69,6 +69,8 @@ NS_LOG_COMPONENT_DEFINE ("main");
 /////////////////////////////////////////////////
 int main (int argc, char *argv[]) {
 
+  srand (time(NULL));
+
   CommandLine cmd;
   string tcp_protocol="ns3::TcpBbr";
   int buffer_size = 1000;
@@ -118,7 +120,7 @@ int main (int argc, char *argv[]) {
  
   // More config.
   // If BDP>>10, Try use a larger initial window, e.g., 40 pkts, to speed up simulation.
-  Config::SetDefault ("ns3::TcpSocket::InitialCwnd", UintegerValue (40));
+  Config::SetDefault ("ns3::TcpSocket::InitialCwnd", UintegerValue (10));
   Config::SetDefault ("ns3::TcpSocket::ConnTimeout", TimeValue (MilliSeconds (500)));
   Config::SetDefault ("ns3::TcpSocketBase::MinRto", TimeValue (MilliSeconds (100)));
   Config::SetDefault ("ns3::TcpSocketBase::ClockGranularity", TimeValue (MicroSeconds (100)));
@@ -212,14 +214,14 @@ int main (int argc, char *argv[]) {
     source.SetAttribute("MaxBytes", UintegerValue(0));
     source.SetAttribute("SendSize", UintegerValue(PACKET_SIZE));
     ApplicationContainer apps = source.Install(nodes.Get(i));
-    apps.Start(Seconds(START_TIME));
+    apps.Start(Seconds(START_TIME+0.2*(float)rand()/RAND_MAX));
     apps.Stop(Seconds(STOP_TIME));
 
     // Sink (at node n+1).
     PacketSinkHelper sink("ns3::TcpSocketFactory",
                           InetSocketAddress(Ipv4Address::GetAny(), port+i));
     apps = sink.Install(nodes.Get(FLOW_NUM+1));
-    apps.Start(Seconds(START_TIME));
+    apps.Start(Seconds(START_TIME+0.2*(float)rand()/RAND_MAX));
     apps.Stop(Seconds(STOP_TIME));
     p_sink.push_back(DynamicCast<PacketSink> (apps.Get(0))); // 4 stats
   }
