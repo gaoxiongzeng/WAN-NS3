@@ -36,17 +36,22 @@ using namespace std;
 #define PACKET_SIZE      1448      // Bytes.
 #define FLOW_NUM         200   // n of n-to-1 (incast degree)
 
-void PeriodicPrint(vector<Ptr<PacketSink>> p_sink, double byte_sum, Ptr<Queue<Packet> > queue, Ptr<QueueDisc> qdisc) {
+void PeriodicPrint(vector<Ptr<PacketSink>> p_sink, double byte_sum, double tbyte_sum, Ptr<Queue<Packet> > queue, Ptr<QueueDisc> qdisc) {
   double byte_sum_new = 0.0;
+  double tbyte_sum_new = 0.0;
   for (int i=0; i<FLOW_NUM; i++)
     byte_sum_new += p_sink[i]->GetTotalRx();
-  double throughput = (byte_sum_new - byte_sum) * 8 / 1000;
+  tbyte_sum_new = qdisc->GetStats().nTotalDequeuedPackets*PACKET_SIZE;
+  double goodput = (byte_sum_new - byte_sum) * 8 / 1000;
+  double throughput = (tbyte_sum_new - tbyte_sum) * 8 / 1000;
   std::cout << "Time: " << Simulator::Now().GetSeconds();
+  std::cout << " Goodput: " << goodput; // Mbps
   std::cout << " Throughput: " << throughput; // Mbps
   std::cout << " Queue: " << queue->GetNPackets();
-  //std::cout << " Queue: " << qdisc->GetNPackets(); // This queue length is not what we want!
+  //std::cout << " Queue: " << qdisc->GetNPackets();
+  //std::cout << " Packet drop: " << queue->GetTotalDroppedPackets();
   std::cout << " Packet drop: " << qdisc->GetStats().nTotalDroppedPackets << std::endl;
-  Simulator::Schedule(MilliSeconds(1), &PeriodicPrint, p_sink, byte_sum_new, queue, qdisc);
+  Simulator::Schedule(MilliSeconds(1), &PeriodicPrint, p_sink, byte_sum_new, tbyte_sum_new, queue, qdisc);
 }
 
 static void QueueDropTrace (Ptr<const Packet> p) {
@@ -67,7 +72,7 @@ int main (int argc, char *argv[]) {
 
   CommandLine cmd;
   string tcp_protocol="ns3::TcpBbr";
-  int buffer_size = 1000;
+  int buffer_size = 10;
   cmd.AddValue("protocol", "Transport protocol in use", tcp_protocol);
   cmd.AddValue("bSize", "Buffer size in packets", buffer_size);
   cmd.Parse (argc, argv);
@@ -82,8 +87,8 @@ int main (int argc, char *argv[]) {
 
   /////////////////////////////////////////
   // Setup environment
-  Config::SetDefault("ns3::TcpL4Protocol::SocketType",
-                     StringValue(tcp_protocol));
+  Config::SetDefault("ns3::TcpL4Protocol::SocketType", StringValue(tcp_protocol));
+  //Config::SetDefault ("ns3::TcpSocketBase::Sack", BooleanValue (true));
 
   // Report parameters.
   NS_LOG_INFO("TCP protocol: " << tcp_protocol);
@@ -114,7 +119,7 @@ int main (int argc, char *argv[]) {
  
   // More config.
   // If BDP>>10, Try use a larger initial window, e.g., 40 pkts, to speed up simulation.
-  Config::SetDefault ("ns3::TcpSocket::InitialCwnd", UintegerValue (40));
+  Config::SetDefault ("ns3::TcpSocket::InitialCwnd", UintegerValue (10));
   Config::SetDefault ("ns3::TcpSocket::ConnTimeout", TimeValue (MilliSeconds (500)));
   Config::SetDefault ("ns3::TcpSocketBase::MinRto", TimeValue (MilliSeconds (100)));
   Config::SetDefault ("ns3::TcpSocketBase::ClockGranularity", TimeValue (MicroSeconds (100)));
@@ -241,7 +246,7 @@ int main (int argc, char *argv[]) {
     p2p.EnablePcapAll(file_prefix+"-shark", true);
   }
 
-  Simulator::ScheduleNow(&PeriodicPrint, p_sink, 0.0, bottleneck_queue, bottleneck_qdisc.Get (0));
+  Simulator::ScheduleNow(&PeriodicPrint, p_sink, 0.0, 0.0, bottleneck_queue, bottleneck_qdisc.Get (0));
 
   /////////////////////////////////////////
   // Run simulation.
@@ -257,17 +262,19 @@ int main (int argc, char *argv[]) {
   /////////////////////////////////////////
   // Ouput stats.
   double byte_sum = 0.0;
-  double tput_sum = 0.0;
-  vector<double> tput(FLOW_NUM, 0.0);
+  double goodput_sum = 0.0;
+  vector<double> goodput(FLOW_NUM, 0.0);
   for (int i=0; i<FLOW_NUM; i++) {
     byte_sum += p_sink[i]->GetTotalRx();
-    tput[i] = p_sink[i]->GetTotalRx() / (STOP_TIME - start_time[i]);
-    tput[i] *= 8;          // Convert to bits.
-    tput[i] /= 1000000.0;  // Convert to Mb/s
-    tput_sum += tput[i];
+    goodput[i] = p_sink[i]->GetTotalRx() / (STOP_TIME - START_TIME);
+    goodput[i] *= 8;          // Convert to bits.
+    goodput[i] /= 1000000.0;  // Convert to Mb/s
+    goodput_sum += goodput[i];
   }
+  double throughput = bottleneck_qdisc.Get (0)->GetStats().nTotalDequeuedPackets*PACKET_SIZE * 8 / 1000000.0 / (STOP_TIME - START_TIME);
   NS_LOG_INFO("Total bytes received: " << byte_sum);
-  NS_LOG_INFO("Throughput: " << tput_sum << " Mb/s");
+  NS_LOG_INFO("Throughput: " << throughput << " Mb/s");
+  NS_LOG_INFO("Goodput: " << goodput_sum << " Mb/s");
   NS_LOG_INFO("Done.");
 
   // Done.
