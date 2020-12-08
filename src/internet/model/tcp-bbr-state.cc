@@ -231,7 +231,7 @@ void BbrStartupState::execute() {
   NS_LOG_LOGIC(this << "  Growth stalled. old_bw: " << m_full_bw << "  new_bw: " << new_bw << "  full-bw-count: " << m_full_bw_count);
   
   // If 3+ rounds w/out much growth, STARTUP --> DRAIN.
-  if (m_full_bw_count > 2) {
+  if (m_full_bw_count > 2 || (bbr::LOSS_AWARENESS && m_owner->m_in_retrans_seq)) {
     NS_LOG_LOGIC(this << "  Exiting STARTUP, next state DRAIN");
     m_owner -> m_machine.changeState(&m_owner -> m_state_drain);
   }
