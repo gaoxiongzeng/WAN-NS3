@@ -44,6 +44,7 @@ void PeriodicPrint(vector<Ptr<PacketSink>> p_sink, double byte_sum, double tbyte
   tbyte_sum_new = qdisc->GetStats().nTotalDequeuedPackets*PACKET_SIZE;
   double goodput = (byte_sum_new - byte_sum) * 8 / 1000;
   double throughput = (tbyte_sum_new - tbyte_sum) * 8 / 1000;
+  if (throughput<0) throughput = 0; // avoid wraparound
   std::cout << "Time: " << Simulator::Now().GetSeconds();
   std::cout << " Goodput: " << goodput; // Mbps
   std::cout << " Throughput: " << throughput; // Mbps
