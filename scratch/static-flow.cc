@@ -211,7 +211,7 @@ int main (int argc, char *argv[]) {
   vector<double> start_time;
   for (int i=0; i<FLOW_NUM; i++) {
     // desynchronize the flow start time
-    start_time.push_back(START_TIME+0.2*(float)rand()/RAND_MAX);
+    start_time.push_back(START_TIME+0.002*(float)rand()/RAND_MAX);
 
     // Source (at node i).
     BulkSendHelper source("ns3::TcpSocketFactory",
