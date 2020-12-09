@@ -231,7 +231,7 @@ void BbrStartupState::execute() {
   NS_LOG_LOGIC(this << "  Growth stalled. old_bw: " << m_full_bw << "  new_bw: " << new_bw << "  full-bw-count: " << m_full_bw_count);
   
   // If 3+ rounds w/out much growth, STARTUP --> DRAIN.
-  if (m_full_bw_count > 2 || (bbr::LOSS_AWARENESS && m_owner->m_in_retrans_seq)) {
+  if (m_full_bw_count > 2) {
     NS_LOG_LOGIC(this << "  Exiting STARTUP, next state DRAIN");
     m_owner -> m_machine.changeState(&m_owner -> m_state_drain);
   }
@@ -287,7 +287,8 @@ void BbrDrainState::enter() {
   if (PACING_CONFIG == NO_PACING)
     m_owner -> m_cwnd_gain = 1 / bbr::STARTUP_GAIN; // Slow cwnd if no pacing.
   else
-    m_owner -> m_cwnd_gain = bbr::STARTUP_GAIN; // Maintain high cwnd gain.
+    //m_owner -> m_cwnd_gain = bbr::STARTUP_GAIN; // Maintain high cwnd gain.
+    m_owner -> m_cwnd_gain = 1 / bbr::STARTUP_GAIN; // Slow cwnd still.
 
   // Get BDP for target inflight limit when will exit STARTUUP..
   double bdp = m_owner -> getBDP();

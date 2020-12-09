@@ -386,7 +386,7 @@ void TcpBbr::Send(Ptr<TcpSocketBase> tsb, Ptr<TcpSocketState> tcb,
   }
 
   // If not in retrans sequence, record info for BW est (in PktsAcked()).
-  if (!m_in_retrans_seq) {
+  if (!m_in_retrans_seq && tcb->m_congState==TcpSocketState::CA_OPEN) {
 
     // Get last sequence number ACKed.
     bbr::packet_struct p;
@@ -615,6 +615,13 @@ void TcpBbr::CongestionStateSet(Ptr<TcpSocketState> tcb,
       m_cwnd = m_prior_cwnd;
     NS_LOG_LOGIC(this << "  m_cwnd: " << m_cwnd <<
                 "  prior_cwnd: " << m_prior_cwnd);
+  }
+
+  // BBRv2 loss awareness
+  if (new_state != TcpSocketState::CA_OPEN && bbr::LOSS_AWARENESS && 
+        m_machine.getStateType() == bbr::STARTUP_STATE) {
+    NS_LOG_LOGIC(this << "  Exiting STARTUP, next state DRAIN");
+    m_machine.changeState(&m_state_drain);
   }
 }
 
