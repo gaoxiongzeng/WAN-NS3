@@ -43,8 +43,11 @@ void PeriodicPrint(vector<Ptr<PacketSink>> p_sink, double byte_sum, double tbyte
     byte_sum_new += p_sink[i]->GetTotalRx();
   tbyte_sum_new = qdisc->GetStats().nTotalDequeuedPackets*PACKET_SIZE;
   double goodput = (byte_sum_new - byte_sum) * 8 / 1000;
-  double throughput = (tbyte_sum_new - tbyte_sum) * 8 / 1000;
-  if (throughput<0) throughput = 0; // avoid wraparound
+  double throughput = 0.0;
+  if (tbyte_sum_new >= tbyte_sum)
+   throughput = (tbyte_sum_new - tbyte_sum) * 8 / 1000;
+  else // in case of wraparound
+   throughput = tbyte_sum_new * 8 / 1000;
   std::cout << "Time: " << Simulator::Now().GetSeconds();
   std::cout << " Goodput: " << goodput; // Mbps
   std::cout << " Throughput: " << throughput; // Mbps
@@ -211,7 +214,7 @@ int main (int argc, char *argv[]) {
   vector<double> start_time;
   for (int i=0; i<FLOW_NUM; i++) {
     // desynchronize the flow start time
-    start_time.push_back(START_TIME+0.002*(float)rand()/RAND_MAX);
+    start_time.push_back(START_TIME+0.2*(float)rand()/RAND_MAX);
 
     // Source (at node i).
     BulkSendHelper source("ns3::TcpSocketFactory",
