@@ -36,26 +36,27 @@ using namespace std;
 #define PACKET_SIZE      1448      // Bytes.
 #define FLOW_NUM         200   // n of n-to-1 (incast degree)
 
-void PeriodicPrint(vector<Ptr<PacketSink>> p_sink, double byte_sum, double tbyte_sum, Ptr<Queue<Packet> > queue, Ptr<QueueDisc> qdisc) {
+void PeriodicPrint(vector<Ptr<PacketSink>> p_sink, double byte_sum, double tbyte_sum, Ptr<QueueDisc> qdisc) {
   double byte_sum_new = 0.0;
-  double tbyte_sum_new = 0.0;
   for (int i=0; i<FLOW_NUM; i++)
     byte_sum_new += p_sink[i]->GetTotalRx();
-  tbyte_sum_new = qdisc->GetStats().nTotalDequeuedPackets*PACKET_SIZE;
   double goodput = (byte_sum_new - byte_sum) * 8 / 1000;
+  
+  double tbyte_sum_new = qdisc->GetStats().nTotalDequeuedPackets*PACKET_SIZE;
   double throughput = 0.0;
   if (tbyte_sum_new >= tbyte_sum)
    throughput = (tbyte_sum_new - tbyte_sum) * 8 / 1000;
   else // in case of wraparound
    throughput = tbyte_sum_new * 8 / 1000;
+
   std::cout << "Time: " << Simulator::Now().GetSeconds();
   std::cout << " Goodput: " << goodput; // Mbps
   std::cout << " Throughput: " << throughput; // Mbps
-  std::cout << " Queue: " << queue->GetNPackets();
-  //std::cout << " Queue: " << qdisc->GetNPackets();
-  //std::cout << " Packet drop: " << queue->GetTotalDroppedPackets();
+  std::cout << " Queue: " << qdisc->GetNPackets();
   std::cout << " Packet drop: " << qdisc->GetStats().nTotalDroppedPackets << std::endl;
-  Simulator::Schedule(MilliSeconds(1), &PeriodicPrint, p_sink, byte_sum_new, tbyte_sum_new, queue, qdisc);
+  //std::cout << " Queue: " << queue->GetNPackets();
+  //std::cout << " Packet drop: " << queue->GetTotalDroppedPackets();
+  Simulator::Schedule(MilliSeconds(1), &PeriodicPrint, p_sink, byte_sum_new, tbyte_sum_new, qdisc);
 }
 
 static void QueueDropTrace (Ptr<const Packet> p) {
@@ -102,6 +103,7 @@ int main (int argc, char *argv[]) {
   NS_LOG_INFO("Router to Client Bwdth: " << R_TO_C_BW);
   NS_LOG_INFO("Router to Client Delay: " << R_TO_C_DELAY);
   NS_LOG_INFO("Packet size (bytes): " << PACKET_SIZE);
+  NS_LOG_INFO("Router queue size: "<< buffer_size);
   
   // Set segment size (otherwise, ns-3 default is 536).
   Config::SetDefault("ns3::TcpSocket::SegmentSize",
@@ -126,10 +128,6 @@ int main (int argc, char *argv[]) {
   Config::SetDefault ("ns3::TcpSocket::InitialCwnd", UintegerValue (10));
   Config::SetDefault ("ns3::TcpSocket::ConnTimeout", TimeValue (MilliSeconds (500)));
   Config::SetDefault ("ns3::TcpSocketBase::MinRto", TimeValue (MilliSeconds (100)));
-  Config::SetDefault ("ns3::TcpSocketBase::ClockGranularity", TimeValue (MicroSeconds (100)));
-  Config::SetDefault ("ns3::RttEstimator::InitialEstimation", TimeValue (MilliSeconds (300)));
-
-  Config::SetDefault ("ns3::RedQueueDisc::QueueLimit", UintegerValue (buffer_size));
 
   /////////////////////////////////////////
   // Create nodes.
@@ -163,10 +161,6 @@ int main (int argc, char *argv[]) {
   p2p.SetDeviceAttribute("DataRate", StringValue (S_TO_R_BW));
   p2p.SetChannelAttribute("Delay", StringValue (S_TO_R_DELAY));
   p2p.SetDeviceAttribute ("Mtu", UintegerValue(mtu));
-  NS_LOG_INFO("Router queue size: "<< buffer_size);
-  p2p.SetQueue("ns3::DropTailQueue",
-               "Mode", StringValue ("QUEUE_MODE_PACKETS"),
-               "MaxPackets", UintegerValue(buffer_size));
   vector<NetDeviceContainer> devices;
   for (int i=0; i<FLOW_NUM; i++)
     devices.push_back(p2p.Install(s_to_r[i]));
@@ -175,15 +169,14 @@ int main (int argc, char *argv[]) {
   p2p.SetDeviceAttribute("DataRate", StringValue (R_TO_C_BW));
   p2p.SetChannelAttribute("Delay", StringValue (R_TO_C_DELAY));
   p2p.SetDeviceAttribute ("Mtu", UintegerValue(mtu));
-  p2p.SetQueue("ns3::DropTailQueue",
-               "Mode", StringValue ("QUEUE_MODE_PACKETS"),
-               "MaxPackets", UintegerValue(buffer_size));
+  // the real packet dropping happens at the qdisc
+  p2p.SetQueue("ns3::DropTailQueue", "MaxPackets", UintegerValue(10));
   NetDeviceContainer devices2 = p2p.Install(r_to_n1);
 
   // Bottleneck queue to be monitored
   Ptr<Queue<Packet> > bottleneck_queue = StaticCast<PointToPointNetDevice> (devices2.Get (0))->GetQueue ();
   TrafficControlHelper tc;
-  tc.SetRootQueueDisc ("ns3::RedQueueDisc");
+  tc.SetRootQueueDisc ("ns3::PfifoFastQueueDisc", "Limit", UintegerValue (buffer_size));
   QueueDiscContainer bottleneck_qdisc = tc.Install (devices2);
   
   /////////////////////////////////////////
@@ -241,16 +234,16 @@ int main (int argc, char *argv[]) {
     NS_LOG_INFO("Enabling trace files.");
     AsciiTraceHelper asciiTraceHelper;
     p2p.EnableAsciiAll(asciiTraceHelper.CreateFileStream(file_prefix+"-trace.tr"));
-    Ptr<OutputStreamWrapper> stream = asciiTraceHelper.CreateFileStream (file_prefix+"-queue.tr");
-    bottleneck_queue->TraceConnectWithoutContext ("PacketsInQueue", MakeBoundCallback (&PacketsInQueueTrace, stream));
-    bottleneck_queue->TraceConnectWithoutContext ("Drop", MakeCallback (&QueueDropTrace));
+    //Ptr<OutputStreamWrapper> stream = asciiTraceHelper.CreateFileStream (file_prefix+"-queue.tr");
+    //bottleneck_queue->TraceConnectWithoutContext ("PacketsInQueue", MakeBoundCallback (&PacketsInQueueTrace, stream));
+    //bottleneck_queue->TraceConnectWithoutContext ("Drop", MakeCallback (&QueueDropTrace));
   }  
   if (ENABLE_PCAP) {
     NS_LOG_INFO("Enabling pcap files.");
     p2p.EnablePcapAll(file_prefix+"-shark", true);
   }
 
-  Simulator::ScheduleNow(&PeriodicPrint, p_sink, 0.0, 0.0, bottleneck_queue, bottleneck_qdisc.Get (0));
+  Simulator::ScheduleNow(&PeriodicPrint, p_sink, 0.0, 0.0, bottleneck_qdisc.Get (0));
 
   /////////////////////////////////////////
   // Run simulation.
