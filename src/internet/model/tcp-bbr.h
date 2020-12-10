@@ -45,7 +45,7 @@ const float VERSION = 1.7;            // See changelog.txt.
 const Time INIT_RTT = Time(1000000);  // Nanoseconds (.001 sec).
 const double INIT_BW = 6.0;           // Mb/s. 
 const int RTT_WINDOW_TIME = 10;       // In seconds.
-const int BW_WINDOW_TIME = 10;        // In RTTs.
+const int BW_WINDOW_TIME = 3;        // In RTTs.
 const int MIN_CWND = 4 * 1000;        // In bytes.
 const float PACING_FACTOR = 0.95;     // Factor of BW to pace (for tuning).
   
