@@ -42,7 +42,7 @@ void PeriodicPrint(vector<Ptr<PacketSink>> p_sink, double byte_sum, double tbyte
     byte_sum_new += p_sink[i]->GetTotalRx();
   double goodput = (byte_sum_new - byte_sum) * 8 / 1000;
   
-  double tbyte_sum_new = qdisc->GetStats().nTotalDequeuedPackets*PACKET_SIZE;
+  double tbyte_sum_new = qdisc->GetStats().nTotalSentPackets*PACKET_SIZE;
   double throughput = 0.0;
   if (tbyte_sum_new >= tbyte_sum)
    throughput = (tbyte_sum_new - tbyte_sum) * 8 / 1000;
@@ -268,7 +268,7 @@ int main (int argc, char *argv[]) {
     goodput[i] /= 1000000.0;  // Convert to Mb/s
     goodput_sum += goodput[i];
   }
-  double throughput = bottleneck_qdisc.Get (0)->GetStats().nTotalDequeuedPackets*PACKET_SIZE * 8 / 1000000.0 / (STOP_TIME - START_TIME);
+  double throughput = bottleneck_qdisc.Get (0)->GetStats().nTotalSentPackets*PACKET_SIZE * 8 / 1000000.0 / (STOP_TIME - START_TIME);
   NS_LOG_INFO("Total bytes received: " << byte_sum);
   NS_LOG_INFO("Throughput: " << throughput << " Mb/s");
   NS_LOG_INFO("Goodput: " << goodput_sum << " Mb/s");

@@ -287,8 +287,8 @@ void BbrDrainState::enter() {
   if (PACING_CONFIG == NO_PACING)
     m_owner -> m_cwnd_gain = 1 / bbr::STARTUP_GAIN; // Slow cwnd if no pacing.
   else
-    //m_owner -> m_cwnd_gain = bbr::STARTUP_GAIN; // Maintain high cwnd gain.
-    m_owner -> m_cwnd_gain = 1 / bbr::STARTUP_GAIN; // Slow cwnd still.
+    m_owner -> m_cwnd_gain = bbr::STARTUP_GAIN; // Maintain high cwnd gain.
+    //m_owner -> m_cwnd_gain = 1 / bbr::STARTUP_GAIN; // Slow cwnd still.
 
   // Get BDP for target inflight limit when will exit STARTUUP..
   double bdp = m_owner -> getBDP();
