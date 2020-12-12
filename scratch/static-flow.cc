@@ -33,6 +33,7 @@ using namespace std;
 #define S_TO_R_DELAY     "10ms"
 #define R_TO_C_BW        "10Gbps"  // Router to client (bttlneck)
 #define R_TO_C_DELAY     "10ms"
+#define ENDHOST_BUFFER   1000000000 // should be at least one BDP
 #define PACKET_SIZE      1448      // Bytes.
 #define FLOW_NUM         200   // n of n-to-1 (incast degree)
 
@@ -54,18 +55,7 @@ void PeriodicPrint(vector<Ptr<PacketSink>> p_sink, double byte_sum, double tbyte
   std::cout << " Throughput: " << throughput; // Mbps
   std::cout << " Queue: " << qdisc->GetNPackets();
   std::cout << " Packet drop: " << qdisc->GetStats().nTotalDroppedPackets << std::endl;
-  //std::cout << " Queue: " << queue->GetNPackets();
-  //std::cout << " Packet drop: " << queue->GetTotalDroppedPackets();
   Simulator::Schedule(MilliSeconds(1), &PeriodicPrint, p_sink, byte_sum_new, tbyte_sum_new, qdisc);
-}
-
-static void QueueDropTrace (Ptr<const Packet> p) {
-  std::cout << "Time: " << Simulator::Now ().GetSeconds () << ". Packet drop!!!" << std::endl;
-}
-
-void PacketsInQueueTrace (Ptr<OutputStreamWrapper> stream, unsigned int oldValue, unsigned int newValue) {
-  *stream->GetStream() << Simulator::Now().GetSeconds()  << " " << oldValue << " " << newValue << std::endl;
-  std::cout << "Time: " << Simulator::Now().GetSeconds()  << ". Queue length from " << oldValue << " to " << newValue << std::endl;
 }
 
 // For logging. 
@@ -115,19 +105,17 @@ int main (int argc, char *argv[]) {
 
   // Send buffer and Recv buffer should be large enough for high BDP network.
   // If FLOW_NUM>10, should reduce simulation memory usage. 
-  if (FLOW_NUM>10) {
-    Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(10000000000/FLOW_NUM));
-    Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(10000000000/FLOW_NUM));
-  } else {
-    Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(1000000000));
-    Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(1000000000));
-  }
+  Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(ENDHOST_BUFFER/FLOW_NUM));
+  Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(ENDHOST_BUFFER/FLOW_NUM));
  
   // More config.
   // If BDP>>10, Try use a larger initial window, e.g., 40 pkts, to speed up simulation.
   Config::SetDefault ("ns3::TcpSocket::InitialCwnd", UintegerValue (10));
   Config::SetDefault ("ns3::TcpSocket::ConnTimeout", TimeValue (MilliSeconds (500)));
-  Config::SetDefault ("ns3::TcpSocketBase::MinRto", TimeValue (MilliSeconds (100)));
+  Config::SetDefault ("ns3::TcpSocketBase::MinRto", TimeValue (MilliSeconds (200)));
+
+  if (tcp_protocol != "ns3::TcpBbr")
+    Config::SetDefault ("ns3::TcpSocketBase::TCPPacing", BooleanValue (false));
 
   /////////////////////////////////////////
   // Create nodes.
@@ -234,9 +222,6 @@ int main (int argc, char *argv[]) {
     NS_LOG_INFO("Enabling trace files.");
     AsciiTraceHelper asciiTraceHelper;
     p2p.EnableAsciiAll(asciiTraceHelper.CreateFileStream(file_prefix+"-trace.tr"));
-    //Ptr<OutputStreamWrapper> stream = asciiTraceHelper.CreateFileStream (file_prefix+"-queue.tr");
-    //bottleneck_queue->TraceConnectWithoutContext ("PacketsInQueue", MakeBoundCallback (&PacketsInQueueTrace, stream));
-    //bottleneck_queue->TraceConnectWithoutContext ("Drop", MakeCallback (&QueueDropTrace));
   }  
   if (ENABLE_PCAP) {
     NS_LOG_INFO("Enabling pcap files.");

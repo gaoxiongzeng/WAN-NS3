@@ -35,8 +35,8 @@ namespace bbr {
 enum enum_time_config {WALLCLOCK_TIME, PACKET_TIME};
 
 // Actual configuration option.
+//const enum_time_config TIME_CONFIG = PACKET_TIME;
 const enum_time_config TIME_CONFIG = WALLCLOCK_TIME;
-//const enum_time_config TIME_CONFIG = WALLCLOCK_TIME;
 
 ///////////////////////////////////////////////////////////////////
 
@@ -64,7 +64,7 @@ const float RTT_NOCHANGE_LIMIT = 10;  // To enter (in seconds).
 const float PROBE_RTT_MIN_TIME = 0.2; // Minimun stay time (in seconds).
 
 // Loss awareness of BBRv2
-const bool LOSS_AWARENESS = true; 
+const bool LOSS_AWARENESS = false; 
 
 // Structure for tracking TCP window for estimating BW.
 struct packet_struct {

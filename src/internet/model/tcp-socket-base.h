@@ -1200,6 +1200,7 @@ protected:
   SequenceNumber32       m_recover;      //!< Previous highest Tx seqnum for fast recovery
   uint32_t               m_retxThresh;   //!< Fast Retransmit threshold
   bool                   m_limitedTx;    //!< perform limited transmit
+  bool                   m_tcpPacing;
 
   // Transmission Control Block
   Ptr<TcpSocketState>    m_tcb;               //!< Congestion control informations

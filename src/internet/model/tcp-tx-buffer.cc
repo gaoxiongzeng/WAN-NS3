@@ -1031,8 +1031,6 @@ TcpTxBuffer::SetSentListLost ()
 
   for (it = m_sentList.begin (); it != m_sentList.end (); ++it)
     {
-      if (!(*it)->m_sacked)
-        (*it)->m_lost = true;
       (*it)->m_retrans = false;
     }
 }
