@@ -35,8 +35,8 @@ namespace bbr {
 enum enum_time_config {WALLCLOCK_TIME, PACKET_TIME};
 
 // Actual configuration option.
-//const enum_time_config TIME_CONFIG = PACKET_TIME;
-const enum_time_config TIME_CONFIG = WALLCLOCK_TIME;
+const enum_time_config TIME_CONFIG = PACKET_TIME;
+//const enum_time_config TIME_CONFIG = WALLCLOCK_TIME;
 
 ///////////////////////////////////////////////////////////////////
 
@@ -46,8 +46,8 @@ const Time INIT_RTT = Time(1000000);  // Nanoseconds (.001 sec).
 const double INIT_BW = 6.0;           // Mb/s. 
 const int RTT_WINDOW_TIME = 10;       // In seconds.
 const int BW_WINDOW_TIME = 10;        // In RTTs.
-const int MIN_CWND = 4 * 1000;        // In bytes.
-const float PACING_FACTOR = 0.95;     // Factor of BW to pace (for tuning).
+const int MIN_CWND = 4 * 1500;        // In bytes.
+const float PACING_FACTOR = 1.0;     // Factor of BW to pace (for tuning).
   
 // PROBE_BW state:
 // Gain rates per cycle: [1.25, 0.75, 1, 1, 1, 1, 1, 1]
@@ -72,6 +72,7 @@ struct packet_struct {
   SequenceNumber32 sent;   // Next sequence number sent.
   Time time;               // Time sent.
   int delivered;           // Delivered bytes.
+  bool normal;             // recorded in CA_OPEN: true; else false.
 };
 
 // Structure for storing BW estimates.

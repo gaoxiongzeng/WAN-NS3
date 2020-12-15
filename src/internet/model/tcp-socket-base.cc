@@ -3427,14 +3427,14 @@ TcpSocketBase::ReTxTimeout ()
                 m_txBuffer->HeadSequence () << " doubled rto to " <<
                 m_rto.Get ().GetSeconds () << " s");
 
-  //NS_ASSERT_MSG (BytesInFlight () == 0, "There are some bytes in flight after an RTO: " <<
-  //               BytesInFlight ());
+  NS_ASSERT_MSG (BytesInFlight () == 0, "There are some bytes in flight after an RTO: " <<
+                 BytesInFlight ());
 
   // Retransmit the packet
   DoRetransmit ();
 
-  //NS_ASSERT_MSG (BytesInFlight () <= m_tcb->m_segmentSize,
-  //               "In flight there is more than one segment");
+  NS_ASSERT_MSG (BytesInFlight () <= m_tcb->m_segmentSize,
+                 "In flight there is more than one segment");
 }
 
 void

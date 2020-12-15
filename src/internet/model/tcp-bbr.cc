@@ -206,7 +206,7 @@ void TcpBbr::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t packets_acked,
   // See if changed minimum RTT (to decide when to PROBE_RTT).
   Time now = Simulator::Now();
   Time min_rtt = getRTT();
-  if (rtt < getRTT()) {
+  if (rtt < min_rtt) {
     NS_LOG_LOGIC(this << "  New min RTT: " << 
                 rtt << " sec (was: " << min_rtt.GetSeconds() << ")");
     m_min_rtt_change = now;  
@@ -242,11 +242,11 @@ void TcpBbr::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t packets_acked,
   now = Simulator::Now();                      // W_t'
   bbr::packet_struct packet;
 
-  // Update packet-timed RTT.
+  // Update packet-timed RTT (rough). 
   m_delivered += tcb->m_segmentSize;
   packet.delivered = -1;
   for (auto it = m_pkt_window.begin(); it != m_pkt_window.end(); it++) {
-    if (it->sent == ack)
+    if (it->sent <= ack)
       packet = *it;
   }
   if (packet.delivered >= m_next_round_delivered) {
@@ -284,7 +284,7 @@ void TcpBbr::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t packets_acked,
   packet.sent = 0;
   packet.time = Time(0);
   for (auto it = m_pkt_window.begin(); it != m_pkt_window.end(); it++)
-    if (it->sent <= ack && it->sent > packet.sent)
+    if (it->sent <= ack && it->sent > packet.sent && it->normal)
       packet = *it;  // W_a
 
   // Remove all entries with acks <= current from window.
@@ -304,12 +304,15 @@ void TcpBbr::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t packets_acked,
     bw_est *= 8;          // Convert to b/s.
     bw_est /= 1000000;    // Convert to Mb/s.
 
-    // Add to BW window.
-    bbr::bw_struct bw;
-    bw.bw_est = bw_est;
-    bw.time = now;
-    bw.round = m_round;
-    m_bw_window.push_back(bw);
+    // Add to BW window if normal (may be inf for unknown reason)
+    if (isnormal(bw_est)) {
+      bbr::bw_struct bw;
+      bw.bw_est = bw_est;
+      bw.time = now;
+      bw.round = m_round;
+      m_bw_window.push_back(bw);
+    } else
+      NS_LOG_INFO(this << " bw_est is unnormal!!!");
   }
 
   ////////////////////////////////////////////
@@ -385,22 +388,26 @@ void TcpBbr::Send(Ptr<TcpSocketBase> tsb, Ptr<TcpSocketState> tcb,
     NS_LOG_LOGIC(this << "  Starting retrans sequence: " << seq);
   }
 
-  // If not in retrans sequence, record info for BW est (in PktsAcked()).
-  if (!m_in_retrans_seq && tcb->m_congState==TcpSocketState::CA_OPEN) {
-
+  if (tcb->m_congState != TcpSocketState::CA_LOSS) {
     // Get last sequence number ACKed.
     bbr::packet_struct p;
     p.acked = tcb -> m_lastAckedSeq;
     p.sent = seq;
     p.time = Simulator::Now();
     p.delivered = m_delivered;
-    m_pkt_window.push_back(p);
-  
-    NS_LOG_LOGIC(this << "  Last acked: " << p.acked <<
+
+    if (!m_in_retrans_seq && tcb->m_congState == TcpSocketState::CA_OPEN) {
+      p.normal = true;
+      NS_LOG_LOGIC(this << "  Last acked: " << p.acked <<
                 " Next sequence: " << p.sent);
-  } else {
-    NS_LOG_LOGIC(this << "  seq: " << seq <<
+    }
+    else {
+      p.normal = false;
+      NS_LOG_LOGIC(this << "  seq: " << seq <<
                 "  In retrans sequence: " << m_retrans_seq);
+    }
+
+    m_pkt_window.push_back(p);
   }
 }
 
@@ -587,8 +594,14 @@ void TcpBbr::CongestionStateSet(Ptr<TcpSocketState> tcb,
   // Enter RTO --> minimal cwnd.
   if (new_state == TcpSocketState::CA_LOSS) {
     NS_LOG_LOGIC(this << " Entering RTO (CA_LOSS)");
-    m_prior_cwnd = m_cwnd;
-    m_cwnd = 1000; // bytes
+
+    if (old_state < TcpSocketState::CA_RECOVERY && 
+          m_machine.getStateType() != bbr::PROBE_RTT_STATE)
+      m_prior_cwnd = m_cwnd;
+    else
+      m_prior_cwnd = std::max(m_prior_cwnd, m_cwnd);
+
+    m_cwnd = bbr::MIN_CWND; // bytes
     NS_LOG_LOGIC(this << " cwnd: " << m_cwnd);
   }
 
@@ -596,8 +609,14 @@ void TcpBbr::CongestionStateSet(Ptr<TcpSocketState> tcb,
   // Modulate cwnd for 1 RTT.
   if (new_state == TcpSocketState::CA_RECOVERY) {
     NS_LOG_LOGIC(this << " Entering Fast Recovery (CA_RECOVERY)");
-    m_prior_cwnd = m_cwnd;
-    m_cwnd = m_bytes_in_flight + 1;
+
+    if (old_state < TcpSocketState::CA_RECOVERY && 
+          m_machine.getStateType() != bbr::PROBE_RTT_STATE)
+      m_prior_cwnd = m_cwnd;
+    else
+      m_prior_cwnd = std::max(m_prior_cwnd, m_cwnd);
+
+    m_cwnd = m_bytes_in_flight + tcb->m_segmentSize;
     m_packet_conservation = Simulator::Now() + getRTT(); // Modulate for 1 RTT.
     NS_LOG_LOGIC(this << " m_cwnd: " << m_cwnd <<
                 "  prior_cwnd: " << m_prior_cwnd <<

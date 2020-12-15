@@ -741,16 +741,16 @@ TcpTxBuffer::IsLost (const SequenceNumber32 &seq, const PacketList::const_iterat
 
   NS_LOG_INFO ("Checking if seq=" << seq << " is lost from the buffer ");
 
-  if ((*segment)->m_lost == true)
-    {
-      NS_LOG_INFO ("seq=" << seq << " is lost because of lost flag");
-      return true;
-    }
-
   if ((*segment)->m_sacked == true)
     {
       NS_LOG_INFO ("seq=" << seq << " is not lost because of sacked flag");
       return false;
+    }
+
+  if ((*segment)->m_lost == true)
+    {
+      NS_LOG_INFO ("seq=" << seq << " is lost because of lost flag");
+      return true;
     }
 
   // From RFC 6675:
@@ -1031,6 +1031,8 @@ TcpTxBuffer::SetSentListLost ()
 
   for (it = m_sentList.begin (); it != m_sentList.end (); ++it)
     {
+      if (!(*it)->m_sacked)
+        (*it)->m_lost = true;
       (*it)->m_retrans = false;
     }
 }

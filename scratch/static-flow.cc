@@ -33,9 +33,9 @@ using namespace std;
 #define S_TO_R_DELAY     "10ms"
 #define R_TO_C_BW        "10Gbps"  // Router to client (bttlneck)
 #define R_TO_C_DELAY     "10ms"
-#define ENDHOST_BUFFER   1000000000 // should be at least one BDP
+#define ENDHOST_BUFFER   1000000000 // should be at least one BDP + buffer_size
 #define PACKET_SIZE      1448      // Bytes.
-#define FLOW_NUM         200   // n of n-to-1 (incast degree)
+#define FLOW_NUM         20   // n of n-to-1 (incast degree)
 
 void PeriodicPrint(vector<Ptr<PacketSink>> p_sink, double byte_sum, double tbyte_sum, Ptr<QueueDisc> qdisc) {
   double byte_sum_new = 0.0;
@@ -46,9 +46,9 @@ void PeriodicPrint(vector<Ptr<PacketSink>> p_sink, double byte_sum, double tbyte
   double tbyte_sum_new = qdisc->GetStats().nTotalSentPackets*PACKET_SIZE;
   double throughput = 0.0;
   if (tbyte_sum_new >= tbyte_sum)
-   throughput = (tbyte_sum_new - tbyte_sum) * 8 / 1000;
+    throughput = (tbyte_sum_new - tbyte_sum) * 8 / 1000;
   else // in case of wraparound
-   throughput = tbyte_sum_new * 8 / 1000;
+    throughput = tbyte_sum_new * 8 / 1000;
 
   std::cout << "Time: " << Simulator::Now().GetSeconds();
   std::cout << " Goodput: " << goodput; // Mbps
@@ -83,7 +83,6 @@ int main (int argc, char *argv[]) {
   /////////////////////////////////////////
   // Setup environment
   Config::SetDefault("ns3::TcpL4Protocol::SocketType", StringValue(tcp_protocol));
-  //Config::SetDefault ("ns3::TcpSocketBase::Sack", BooleanValue (true));
 
   // Report parameters.
   NS_LOG_INFO("TCP protocol: " << tcp_protocol);
@@ -96,8 +95,7 @@ int main (int argc, char *argv[]) {
   NS_LOG_INFO("Router queue size: "<< buffer_size);
   
   // Set segment size (otherwise, ns-3 default is 536).
-  Config::SetDefault("ns3::TcpSocket::SegmentSize",
-                     UintegerValue(PACKET_SIZE)); 
+  Config::SetDefault("ns3::TcpSocket::SegmentSize", UintegerValue(PACKET_SIZE)); 
 
   // Turn off delayed ack (so, acks every packet).
   // Note, BBR' still works without this.
@@ -162,7 +160,6 @@ int main (int argc, char *argv[]) {
   NetDeviceContainer devices2 = p2p.Install(r_to_n1);
 
   // Bottleneck queue to be monitored
-  Ptr<Queue<Packet> > bottleneck_queue = StaticCast<PointToPointNetDevice> (devices2.Get (0))->GetQueue ();
   TrafficControlHelper tc;
   tc.SetRootQueueDisc ("ns3::PfifoFastQueueDisc", "Limit", UintegerValue (buffer_size));
   QueueDiscContainer bottleneck_qdisc = tc.Install (devices2);
@@ -195,7 +192,7 @@ int main (int argc, char *argv[]) {
   vector<double> start_time;
   for (int i=0; i<FLOW_NUM; i++) {
     // desynchronize the flow start time
-    start_time.push_back(START_TIME+0.2*(float)rand()/RAND_MAX);
+    start_time.push_back(START_TIME+0.002*(float)rand()/RAND_MAX);
 
     // Source (at node i).
     BulkSendHelper source("ns3::TcpSocketFactory",
@@ -253,7 +250,8 @@ int main (int argc, char *argv[]) {
     goodput[i] /= 1000000.0;  // Convert to Mb/s
     goodput_sum += goodput[i];
   }
-  double throughput = bottleneck_qdisc.Get (0)->GetStats().nTotalSentPackets*PACKET_SIZE * 8 / 1000000.0 / (STOP_TIME - START_TIME);
+  double throughput = bottleneck_qdisc.Get (0)->GetStats().nTotalSentPackets*PACKET_SIZE 
+                        * 8 / 1000000.0 / (STOP_TIME - START_TIME);
   NS_LOG_INFO("Total bytes received: " << byte_sum);
   NS_LOG_INFO("Throughput: " << throughput << " Mb/s");
   NS_LOG_INFO("Goodput: " << goodput_sum << " Mb/s");
