@@ -305,7 +305,7 @@ void TcpBbr::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t packets_acked,
     bw_est /= 1000000;    // Convert to Mb/s.
 
     // Add to BW window if normal (may be inf for unknown reason)
-    if (isnormal(bw_est)) {
+    if (std::isnormal(bw_est)) {
       bbr::bw_struct bw;
       bw.bw_est = bw_est;
       bw.time = now;
