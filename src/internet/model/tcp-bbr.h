@@ -72,7 +72,6 @@ struct packet_struct {
   SequenceNumber32 sent;   // Next sequence number sent.
   Time time;               // Time sent.
   int delivered;           // Delivered bytes.
-  bool normal;             // recorded in CA_OPEN: true; else false.
 };
 
 // Structure for storing BW estimates.

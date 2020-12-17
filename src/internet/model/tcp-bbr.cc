@@ -251,18 +251,6 @@ void TcpBbr::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t packets_acked,
     NS_LOG_LOGIC(this << " New packet-timed RTT.  Round: " << m_round);
   }
 
-  // See if retransmission sequence should end.
-  bool do_est_bw = true;
-  if (m_in_retrans_seq) {
-    NS_LOG_LOGIC(this << "  In retransmission sequence: " << m_retrans_seq);
-    if (ack != m_retrans_seq) {
-      m_in_retrans_seq = false;
-      NS_LOG_LOGIC(this << "  Retransmission sequence ended: " << ack);
-    }
-    // Don't estimate BW if in retrans sequence (or just ending_.
-    do_est_bw = false; 
-  }
-
   // If ack not in list (or list empty), unknown when sent so ignore.
   // This happens most often during retransmission sequences.
   if (m_pkt_window.size() == 0) {
@@ -280,7 +268,7 @@ void TcpBbr::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t packets_acked,
   packet.sent = 0;
   packet.time = Time(0);
   for (auto it = m_pkt_window.begin(); it != m_pkt_window.end(); it++)
-    if (it->sent <= ack && it->sent > packet.sent && it->normal)
+    if (it->sent <= ack && it->sent > packet.sent)
       packet = *it;  // W_a
 
   // Remove all entries with acks <= current from window.
@@ -290,26 +278,21 @@ void TcpBbr::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t packets_acked,
     else
       i++;
 
-  // Estimate BW.
-  double bw_est = 0.0;
-  if (do_est_bw) {
+  // Estimate BW: bw = (W_s - W_a) / (W_t' - W_t)
+  double bw_est = (m_delivered - packet.delivered) /
+           (now.GetSeconds() - packet.time.GetSeconds());
+  bw_est *= 8;          // Convert to b/s.
+  bw_est /= 1000000;    // Convert to Mb/s.
 
-    // Estimate BW: bw = (W_s - W_a) / (W_t' - W_t)
-    bw_est = (ack - packet.acked) /
-             (now.GetSeconds() - packet.time.GetSeconds());
-    bw_est *= 8;          // Convert to b/s.
-    bw_est /= 1000000;    // Convert to Mb/s.
-
-    // Add to BW window if normal (may be inf for unknown reason)
-    if (std::isnormal(bw_est)) {
-      bbr::bw_struct bw;
-      bw.bw_est = bw_est;
-      bw.time = now;
-      bw.round = m_round;
-      m_bw_window.push_back(bw);
-    } else
-      NS_LOG_INFO(this << " bw_est is unnormal!!!");
-  }
+  // Add to BW window if normal (may be inf for unknown reason)
+  if (std::isnormal(bw_est)) {
+    bbr::bw_struct bw;
+    bw.bw_est = bw_est;
+    bw.time = now;
+    bw.round = m_round;
+    m_bw_window.push_back(bw);
+  } else
+    NS_LOG_INFO(this << " bw_est is unnormal!!!");
 
   ////////////////////////////////////////////
   // COMPUTE AND SET PACING RATE.
@@ -377,34 +360,17 @@ void TcpBbr::Send(Ptr<TcpSocketBase> tsb, Ptr<TcpSocketState> tcb,
   // Get the bytes in flight (needed for STARTUP/CA_RECOVERY).
   m_bytes_in_flight = tsb -> BytesInFlight();
 
-  // If retransmission, start sequence (PktsAcked() finds end of sequence).
-  if (isRetrans) {
-    m_in_retrans_seq = true;
-    m_retrans_seq = seq;
-    NS_LOG_LOGIC(this << "  Starting retrans sequence: " << seq);
-  }
+  // Get last sequence number ACKed.
+  bbr::packet_struct p;
+  p.acked = tcb -> m_lastAckedSeq;
+  p.sent = seq;
+  p.time = Simulator::Now();
+  p.delivered = m_delivered;
 
-  if (tcb->m_congState != TcpSocketState::CA_LOSS) {
-    // Get last sequence number ACKed.
-    bbr::packet_struct p;
-    p.acked = tcb -> m_lastAckedSeq;
-    p.sent = seq;
-    p.time = Simulator::Now();
-    p.delivered = m_delivered;
+  NS_LOG_LOGIC(this << "  Last acked: " << p.acked <<
+            " Next sequence: " << p.sent);
 
-    if (!m_in_retrans_seq && tcb->m_congState == TcpSocketState::CA_OPEN) {
-      p.normal = true;
-      NS_LOG_LOGIC(this << "  Last acked: " << p.acked <<
-                " Next sequence: " << p.sent);
-    }
-    else {
-      p.normal = false;
-      NS_LOG_LOGIC(this << "  seq: " << seq <<
-                "  In retrans sequence: " << m_retrans_seq);
-    }
-
-    m_pkt_window.push_back(p);
-  }
+  m_pkt_window.push_back(p);
 }
 
 // Return bandwidth (maximum of window, in Mb/s).
