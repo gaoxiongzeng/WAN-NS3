@@ -171,6 +171,8 @@ void TcpBbr::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t packets_acked,
 
   uint32_t bytes_delivered = packets_acked * 1500;
 
+  double target_cwnd = getTargetCwnd();
+
   // If in Fast Recovery, target cwnd was set in CongestionStateSet().
   if (tcb->m_congState == TcpSocketState::CA_RECOVERY) {
     // If in first RTT of Fast Recovery, modulate cwnd.
@@ -183,18 +185,14 @@ void TcpBbr::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t packets_acked,
       if ((m_bytes_in_flight + bytes_delivered) > m_cwnd)
         m_cwnd = m_bytes_in_flight + bytes_delivered;
     }
-  } else {
-    // Not in Fast Recovery, so re-compute target cwnd.
-    updateTargetCwnd();
+  } 
+
+  if (m_packet_conservation <= Simulator::Now()) {
+    m_cwnd = std::min(target_cwnd, m_cwnd + bytes_delivered);
+    m_cwnd = std::max(m_cwnd, (double) bbr::MIN_CWND);
   }
 
-  // If growing cwnd, do so conservatively.
-  if (tcb -> m_cWnd < m_cwnd) {
-    NS_LOG_LOGIC(this << "  Increasing cwnd by: " << bytes_delivered);
-    tcb -> m_cWnd = tcb -> m_cWnd + bytes_delivered;
-  } else
-    // If shrinking cwnd, adjust immediately.
-    tcb -> m_cWnd = (uint32_t) m_cwnd;
+  tcb -> m_cWnd = (uint32_t) m_cwnd;
 
   ////////////////////////////////////////////
   // STORE RTT
@@ -644,29 +642,33 @@ void TcpBbr::CongestionStateSet(Ptr<TcpSocketState> tcb,
   }
 }
 
-// Compute target TCP cwnd (m_cwnd) based on BDP and gain.
-void TcpBbr::updateTargetCwnd() {
+// Compute target TCP cwnd based on BDP and gain.
+double TcpBbr::getTargetCwnd() {
 
   NS_LOG_FUNCTION(this);
+
+  double target_cwnd = 0.0;
 
   double bdp = getBDP();
   if (PACING_CONFIG == NO_PACING)
     // If no pacing, cwnd is used to control pace.
-    m_cwnd = bdp * m_pacing_gain;
+    target_cwnd = bdp * m_pacing_gain;
   else
     // If pacing, cwnd adjusted larger.
-    m_cwnd = bdp * m_cwnd_gain;
-  m_cwnd = (m_cwnd * 1000000 / 8); // Mbits to bytes.
+    target_cwnd = bdp * m_cwnd_gain;
+  target_cwnd = (target_cwnd * 1000000 / 8); // Mbits to bytes.
 
   // Make sure cwnd not too small (roughly, 4 packets).
-  if (m_cwnd < bbr::MIN_CWND) {
-    NS_LOG_LOGIC(this << "  m_cwnd (bytes): " << m_cwnd <<
+  if (target_cwnd < bbr::MIN_CWND) {
+    NS_LOG_LOGIC(this << "  target_cwnd (bytes): " << target_cwnd <<
                  "  Boosting to (bytes): " << bbr::MIN_CWND);
-    m_cwnd = bbr::MIN_CWND; // In bytes.
+    target_cwnd = bbr::MIN_CWND; // In bytes.
   }
 
   // Log info.
   NS_LOG_INFO(this << "  DATA bdp (Mbits): " << bdp <<
               "  bdp (bytes): " << bdp * 1000000 / 8 <<
-              "  m_cwnd (bytes): " << m_cwnd);
+              "  target_cwnd (bytes): " << target_cwnd);
+
+  return target_cwnd;
 }

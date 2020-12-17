@@ -162,8 +162,8 @@ private:
   // Remove RTT estimates that are too old (greater than 10 seconds).
   void cullRTTwindow();
 
-  // Compute target TCP cwnd (m_cwnd) based on BDP and gain.
-  void updateTargetCwnd();
+  // Compute target TCP cwnd based on BDP and gain.
+  double getTargetCwnd();
 
   // Check if should enter PROBE_RTT state.
   bool checkProbeRTT();

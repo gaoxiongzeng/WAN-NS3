@@ -3410,31 +3410,19 @@ TcpSocketBase::ReTxTimeout ()
       m_tcb->m_ssThresh = m_congestionControl->GetSsThresh (m_tcb, inFlightBeforeRto);
     }
 
-  // Cwnd set to 1 MSS
-  m_tcb->m_cWnd = m_tcb->m_segmentSize;
+  // Cwnd reset (should consider SACK reneging)
+  m_tcb->m_cWnd = m_tcb->m_segmentSize + BytesInFlight();
 
   m_congestionControl->CongestionStateSet (m_tcb, TcpSocketState::CA_LOSS);
   m_tcb->m_congState = TcpSocketState::CA_LOSS;
-
-  // Clear any remaining packets in pacing queue.
-  NS_LOG_DEBUG("RTO. Clearing pacing queue, packet count: "
-               << m_pacing_packets.size());
-  while (!m_pacing_packets.empty())
-    m_pacing_packets.pop();
   
   NS_LOG_DEBUG ("RTO. Reset cwnd to " <<  m_tcb->m_cWnd << ", ssthresh to " <<
                 m_tcb->m_ssThresh << ", restart from seqnum " <<
                 m_txBuffer->HeadSequence () << " doubled rto to " <<
                 m_rto.Get ().GetSeconds () << " s");
 
-  NS_ASSERT_MSG (BytesInFlight () == 0, "There are some bytes in flight after an RTO: " <<
-                 BytesInFlight ());
-
   // Retransmit the packet
   DoRetransmit ();
-
-  NS_ASSERT_MSG (BytesInFlight () <= m_tcb->m_segmentSize,
-                 "In flight there is more than one segment");
 }
 
 void
