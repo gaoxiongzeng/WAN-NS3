@@ -3410,8 +3410,8 @@ TcpSocketBase::ReTxTimeout ()
       m_tcb->m_ssThresh = m_congestionControl->GetSsThresh (m_tcb, inFlightBeforeRto);
     }
 
-  // Cwnd reset (should consider SACK reneging)
-  m_tcb->m_cWnd = m_tcb->m_segmentSize + BytesInFlight();
+  // Cwnd set to 1 MSS
+  m_tcb->m_cWnd = m_tcb->m_segmentSize;
 
   m_congestionControl->CongestionStateSet (m_tcb, TcpSocketState::CA_LOSS);
   m_tcb->m_congState = TcpSocketState::CA_LOSS;
