@@ -178,6 +178,7 @@ class BbrProbeBWState : public BbrState {
 
  private:
   int m_gain_cycle;                        // For cycling gain in PROBE_BW.
+  int m_high_cycle;                        // pick a random cycle to hgih gain in PROBE_BW.
 };
 
 ///////////////////////////////////////////////

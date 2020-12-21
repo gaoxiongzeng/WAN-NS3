@@ -169,12 +169,13 @@ void TcpBbr::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t packets_acked,
   ////////////////////////////////////////////
   // UPDATE TCP CONGESTION WINDOW (CWND)
 
-  uint32_t bytes_delivered = packets_acked * 1500;
+  // assuming per-packet ack
+  uint32_t bytes_delivered = tcb->m_segmentSize;
 
   double target_cwnd = getTargetCwnd();
 
   // If in Loss Recovery, target cwnd was set in CongestionStateSet().
-  if (tcb->m_congState >= TcpSocketState::CA_RECOVERY && 
+  if (tcb->m_congState == TcpSocketState::CA_RECOVERY && 
           m_packet_conservation > Simulator::Now()) {
       NS_LOG_LOGIC(this << "  Modulating cwnd until: " <<
                   m_packet_conservation.GetSeconds());
@@ -249,6 +250,9 @@ void TcpBbr::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t packets_acked,
     m_next_round_delivered = m_delivered;
     m_round++;
     NS_LOG_LOGIC(this << " New packet-timed RTT.  Round: " << m_round);
+
+    if (bbr::TIME_CONFIG != bbr::WALLCLOCK_TIME)
+      m_machine.update();
   }
 
   // If ack not in list (or list empty), unknown when sent so ignore.
@@ -564,7 +568,7 @@ void TcpBbr::CongestionStateSet(Ptr<TcpSocketState> tcb,
       m_prior_cwnd = std::max(m_prior_cwnd, m_cwnd);
 
     m_cwnd = bbr::MIN_CWND; // bytes
-    m_packet_conservation = Simulator::Now() + getRTT(); // Modulate for 1 RTT.
+
     NS_LOG_LOGIC(this << " cwnd: " << m_cwnd);
   }
 

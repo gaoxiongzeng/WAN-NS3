@@ -64,7 +64,7 @@ const float RTT_NOCHANGE_LIMIT = 10;  // To enter (in seconds).
 const float PROBE_RTT_MIN_TIME = 0.2; // Minimun stay time (in seconds).
 
 // Loss awareness of BBRv2
-const bool LOSS_AWARENESS = false; 
+const bool LOSS_AWARENESS = true; 
 
 // Structure for tracking TCP window for estimating BW.
 struct packet_struct {

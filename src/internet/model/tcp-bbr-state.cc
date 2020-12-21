@@ -86,22 +86,24 @@ void BbrStateMachine::update() {
   if (m_owner -> checkProbeRTT())
     changeState(&m_owner -> m_state_probe_rtt);
 
-  // Execute current state.
-  m_state -> execute();
-
   // Cull RTT window.
   m_owner -> cullRTTwindow();
 
   // Cull BW window (except in DRAIN state).
   m_owner -> cullBWwindow();
 
+  // Execute current state.
+  m_state -> execute();
+
   // Schedule next event (if we can).
-  Time rtt = m_owner -> getRTT();
-  if (!rtt.IsNegative()) {
-    Simulator::Schedule(rtt, &BbrStateMachine::update, this);
-    NS_LOG_LOGIC(this << "  Next event: " << rtt.GetSeconds());
-  } else // update() will be called in PktsAcked() upon getting first rtt.
-    NS_LOG_LOGIC(this << "  Not scheduling next event.");
+  if (bbr::TIME_CONFIG == bbr::WALLCLOCK_TIME) {
+    Time rtt = m_owner -> getRTT();
+    if (!rtt.IsNegative()) {
+      Simulator::Schedule(rtt, &BbrStateMachine::update, this);
+      NS_LOG_LOGIC(this << "  Next event: " << rtt.GetSeconds());
+    } else // update() will be called in PktsAcked() upon getting first rtt.
+      NS_LOG_LOGIC(this << "  Not scheduling next event.");
+  }
 }
 
 // Change current state to new state.
@@ -288,7 +290,6 @@ void BbrDrainState::enter() {
     m_owner -> m_cwnd_gain = 1 / bbr::STARTUP_GAIN; // Slow cwnd if no pacing.
   else
     m_owner -> m_cwnd_gain = bbr::STARTUP_GAIN; // Maintain high cwnd gain.
-    //m_owner -> m_cwnd_gain = 1 / bbr::STARTUP_GAIN; // Slow cwnd still.
 
   // Get BDP for target inflight limit when will exit STARTUUP..
   double bdp = m_owner -> getBDP();
@@ -354,17 +355,13 @@ void BbrProbeBWState::enter() {
   NS_LOG_FUNCTION(this);
   NS_LOG_INFO(this << " State: " << GetName());
 
-  // Pick random start cycle phase (except "low") to avoid synch of
-  // flows that enter PROBE_BW simultaneously.
-  do {
-    m_gain_cycle = rand() % 8;
-  } while (m_gain_cycle == 1);  // Phase 1 is "low" cycle.
-
-  NS_LOG_LOGIC(this << " " << GetName() << " Start cycle: " << m_gain_cycle);
+  // Pick random high cycle "high" phase to avoid synch of flows.
+  m_high_cycle = rand() % 7;
+  m_gain_cycle = 0;
 
   // Set gains based on phase.
   m_owner -> m_pacing_gain = bbr::STEADY_FACTOR;
-  if (m_gain_cycle == 0) // Phase 0 is "high" cycle.
+  if (m_gain_cycle == m_high_cycle)
     m_owner -> m_pacing_gain += bbr::PROBE_FACTOR;
   if (PACING_CONFIG == NO_PACING)
     m_owner -> m_cwnd_gain = m_owner -> m_pacing_gain;
@@ -377,10 +374,10 @@ void BbrProbeBWState::execute() {
   NS_LOG_FUNCTION(this);
   NS_LOG_LOGIC(this << " " << GetName() << "  m_gain_cycle: " << m_gain_cycle);
 
-  // Set gain rate: [high, low, stdy, stdy, stdy, stdy, stdy, stdy]
-  if (m_gain_cycle == 0)
+  // Set gain rate: [stdy, stdy, high (random), low (after high), stdy, stdy, stdy, stdy]
+  if (m_gain_cycle == m_high_cycle)
     m_owner -> m_pacing_gain = bbr::STEADY_FACTOR + bbr::PROBE_FACTOR;
-  else if (m_gain_cycle == 1)
+  else if (m_gain_cycle == m_high_cycle+1)
     if (PACING_CONFIG == NO_PACING) 
       m_owner -> m_pacing_gain = bbr::STEADY_FACTOR - bbr::DRAIN_FACTOR/8;
     else
@@ -397,8 +394,10 @@ void BbrProbeBWState::execute() {
 
   // Move to next cycle, wrapping.
   m_gain_cycle++;
-  if (m_gain_cycle > 7)
+  if (m_gain_cycle > 7) {
+    m_high_cycle = rand() % 7;
     m_gain_cycle = 0;
+  }
 
   NS_LOG_LOGIC(this << " " <<
 	      GetName() << " DATA pacing-gain: " << m_owner -> m_pacing_gain);
