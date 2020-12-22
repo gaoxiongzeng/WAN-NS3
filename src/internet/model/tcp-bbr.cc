@@ -184,6 +184,7 @@ void TcpBbr::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t packets_acked,
                   "  bytes_delivered: " << bytes_delivered);
       if ((m_bytes_in_flight + bytes_delivered) > m_cwnd)
         m_cwnd = m_bytes_in_flight + bytes_delivered;
+      m_cwnd = std::min(target_cwnd, m_cwnd);
   } 
 
   if (m_packet_conservation <= Simulator::Now()) {
