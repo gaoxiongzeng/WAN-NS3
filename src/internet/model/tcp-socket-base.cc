@@ -135,10 +135,6 @@ TcpSocketBase::GetTypeId (void)
                    BooleanValue (true),
                    MakeBooleanAccessor (&TcpSocketBase::m_limitedTx),
                    MakeBooleanChecker ())
-    .AddAttribute ("TCPPacing", "Enable TCP Pacing",
-                   BooleanValue (true),
-                   MakeBooleanAccessor (&TcpSocketBase::m_tcpPacing),
-                   MakeBooleanChecker ())
     .AddTraceSource ("RTO",
                      "Retransmission timeout",
                      MakeTraceSourceAccessor (&TcpSocketBase::m_rto),
@@ -339,13 +335,12 @@ TcpSocketBase::TcpSocketBase (void)
     m_recover (0),
     m_retxThresh (3),
     m_limitedTx (false),
-    m_tcpPacing (true),
     m_congestionControl (0),
     m_isFirstPartialAck (true)
 {
   NS_LOG_FUNCTION (this);
 
-  if (PACING_CONFIG == TCP_PACING && m_tcpPacing) 
+  if (PACING_CONFIG == TCP_PACING) 
     NS_LOG_INFO ("PACING_IN_TCP - Pacing in TCP is enabled.");
   else
     NS_LOG_INFO ("APP_PACING/NO_PACING - Pacing in TCP is *not* enabled.");
@@ -424,7 +419,6 @@ TcpSocketBase::TcpSocketBase (const TcpSocketBase& sock)
     m_recover (sock.m_recover),
     m_retxThresh (sock.m_retxThresh),
     m_limitedTx (sock.m_limitedTx),
-    m_tcpPacing (sock.m_tcpPacing),
     m_isFirstPartialAck (sock.m_isFirstPartialAck),
     m_txTrace (sock.m_txTrace),
     m_rxTrace (sock.m_rxTrace)
@@ -2673,7 +2667,7 @@ TcpSocketBase::SendDataPacket (SequenceNumber32 seq, uint32_t maxSize, bool with
   NS_LOG_FUNCTION (this << seq << maxSize << withAck);
 
   // If not TCP pacing, go ahead and send normally.
-  if (PACING_CONFIG != TCP_PACING || !m_tcpPacing)
+  if (PACING_CONFIG == NO_PACING || PACING_CONFIG == APP_PACING)
     return SendDataPacketReal(seq, maxSize, withAck);
 
   // Pacing, so queue until time to send else send now.

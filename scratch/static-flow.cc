@@ -112,9 +112,6 @@ int main (int argc, char *argv[]) {
   Config::SetDefault ("ns3::TcpSocket::ConnTimeout", TimeValue (MilliSeconds (500)));
   Config::SetDefault ("ns3::TcpSocketBase::MinRto", TimeValue (MilliSeconds (200)));
 
-  if (tcp_protocol != "ns3::TcpBbr")
-    Config::SetDefault ("ns3::TcpSocketBase::TCPPacing", BooleanValue (false));
-
   /////////////////////////////////////////
   // Create nodes.
   NS_LOG_INFO("Creating nodes.");

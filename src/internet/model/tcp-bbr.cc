@@ -175,7 +175,7 @@ void TcpBbr::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t packets_acked,
   double target_cwnd = getTargetCwnd();
 
   // If in Loss Recovery, target cwnd was set in CongestionStateSet().
-  if (tcb->m_congState == TcpSocketState::CA_RECOVERY && 
+  if (tcb->m_congState >= TcpSocketState::CA_RECOVERY && 
           m_packet_conservation > Simulator::Now()) {
       NS_LOG_LOGIC(this << "  Modulating cwnd until: " <<
                   m_packet_conservation.GetSeconds());
