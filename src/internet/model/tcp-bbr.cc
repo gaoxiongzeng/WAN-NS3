@@ -151,8 +151,7 @@ void TcpBbr::IncreaseWindow(Ptr<TcpSocketState> tcb, uint32_t segs_acked) {
 uint32_t TcpBbr::GetSsThresh(Ptr<const TcpSocketState> tcb,
                              uint32_t b_in_flight) {
   NS_LOG_FUNCTION(this << tcb << b_in_flight);
-  NS_LOG_INFO(this << "  Ignored.  Returning max (65535).");
-  return 65535;
+  return (uint32_t) m_cwnd;
 }
 
 // On receiving ack:
@@ -567,8 +566,8 @@ void TcpBbr::CongestionStateSet(Ptr<TcpSocketState> tcb,
     else
       m_prior_cwnd = std::max(m_prior_cwnd, m_cwnd);
 
-    m_cwnd = bbr::MIN_CWND; // bytes
-
+    m_cwnd = tcb->m_bytes_in_flight + tcb->m_segmentSize;
+    m_packet_conservation = Simulator::Now() + getRTT(); // Modulate for 1 RTT.
     NS_LOG_LOGIC(this << " cwnd: " << m_cwnd <<
                 "  prior_cwnd: " << m_prior_cwnd);
   }
@@ -598,7 +597,8 @@ void TcpBbr::CongestionStateSet(Ptr<TcpSocketState> tcb,
        new_state != TcpSocketState::CA_LOSS)) {
     NS_LOG_LOGIC(this << " Exiting RTO/Fast Recovery (CA_LOSS/CA_RECOVERY)");
     m_packet_conservation = Simulator::Now(); // Stop packet conservation.
-    if (m_prior_cwnd > m_cwnd)
+    bool restore_prior_cwnd = true;
+    if (m_prior_cwnd > m_cwnd && restore_prior_cwnd)
       m_cwnd = m_prior_cwnd;
     NS_LOG_LOGIC(this << "  m_cwnd: " << m_cwnd <<
                 "  prior_cwnd: " << m_prior_cwnd);

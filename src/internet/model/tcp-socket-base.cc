@@ -1890,7 +1890,6 @@ TcpSocketBase::ProcessAck (const SequenceNumber32 &ackNumber, bool scoreboardUpd
               // (which are the ones we have not passed to PktsAcked and that
               // can increase cWnd)
               segsAcked = (ackNumber - m_recover) / m_tcb->m_segmentSize;
-
               m_tcb -> m_bytes_in_flight = BytesInFlight();
               m_congestionControl->PktsAcked (m_tcb, segsAcked, m_lastRtt);
 
