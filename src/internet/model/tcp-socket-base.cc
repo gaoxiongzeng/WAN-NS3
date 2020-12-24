@@ -243,6 +243,7 @@ TcpSocketState::TcpSocketState (void)
     m_ssThresh (0),
     m_initialCWnd (0),
     m_initialSsThresh (0),
+    m_bytes_in_flight (0),
     m_segmentSize (0),
     m_lastAckedSeq (0),
     m_congState (CA_OPEN),
@@ -261,6 +262,7 @@ TcpSocketState::TcpSocketState (const TcpSocketState &other)
     m_ssThresh (other.m_ssThresh),
     m_initialCWnd (other.m_initialCWnd),
     m_initialSsThresh (other.m_initialSsThresh),
+    m_bytes_in_flight (other.m_bytes_in_flight),
     m_segmentSize (other.m_segmentSize),
     m_lastAckedSeq (other.m_lastAckedSeq),
     m_congState (other.m_congState),
@@ -1744,6 +1746,7 @@ TcpSocketBase::ProcessAck (const SequenceNumber32 &ackNumber, bool scoreboardUpd
     {
       // DupAck. Artificially call PktsAcked: after all, one segment has been ACKed.
       NS_LOG_INFO ("ACK of " << ackNumber << ", PktsAcked called (ACK already managed in DupAck)");
+      m_tcb -> m_bytes_in_flight = BytesInFlight();
       m_congestionControl->PktsAcked (m_tcb, 1, m_lastRtt);
     }
   else if (ackNumber > m_txBuffer->HeadSequence ())
@@ -1786,6 +1789,7 @@ TcpSocketBase::ProcessAck (const SequenceNumber32 &ackNumber, bool scoreboardUpd
           // This partial ACK acknowledge the fact that one segment has been
           // previously lost and now successfully received. All others have
           // been processed when they come under the form of dupACKs
+          m_tcb -> m_bytes_in_flight = BytesInFlight();
           m_congestionControl->PktsAcked (m_tcb, 1, m_lastRtt);
           NewAck (ackNumber, m_isFirstPartialAck);
 
@@ -1813,6 +1817,7 @@ TcpSocketBase::ProcessAck (const SequenceNumber32 &ackNumber, bool scoreboardUpd
       // of RecoveryPoint.
       else if (ackNumber < m_recover && m_tcb->m_congState == TcpSocketState::CA_LOSS)
         {
+          m_tcb -> m_bytes_in_flight = BytesInFlight();
           m_congestionControl->PktsAcked (m_tcb, segsAcked, m_lastRtt);
 
           m_congestionControl->IncreaseWindow (m_tcb, segsAcked);
@@ -1829,6 +1834,7 @@ TcpSocketBase::ProcessAck (const SequenceNumber32 &ackNumber, bool scoreboardUpd
             {
               NS_LOG_DEBUG (segsAcked << " segments acked in CA_OPEN, ack of " <<
                             ackNumber);
+              m_tcb -> m_bytes_in_flight = BytesInFlight();
               m_congestionControl->PktsAcked (m_tcb, segsAcked, m_lastRtt);
             }
           else if (m_tcb->m_congState == TcpSocketState::CA_DISORDER)
@@ -1839,6 +1845,7 @@ TcpSocketBase::ProcessAck (const SequenceNumber32 &ackNumber, bool scoreboardUpd
               m_tcb->m_congState = TcpSocketState::CA_OPEN;
               if (segsAcked >= oldDupAckCount)
                 {
+                  m_tcb -> m_bytes_in_flight = BytesInFlight();
                   m_congestionControl->PktsAcked (m_tcb, segsAcked - oldDupAckCount, m_lastRtt);
                 }
               else
@@ -1865,6 +1872,7 @@ TcpSocketBase::ProcessAck (const SequenceNumber32 &ackNumber, bool scoreboardUpd
               // (which are the ones we have not passed to PktsAcked and that
               // can increase cWnd)
               segsAcked = (ackNumber - m_recover) / m_tcb->m_segmentSize;
+              m_tcb -> m_bytes_in_flight = BytesInFlight();
               m_congestionControl->PktsAcked (m_tcb, segsAcked, m_lastRtt);
 
               m_congestionControl->CongestionStateSet (m_tcb, TcpSocketState::CA_OPEN);
@@ -1883,6 +1891,7 @@ TcpSocketBase::ProcessAck (const SequenceNumber32 &ackNumber, bool scoreboardUpd
               // can increase cWnd)
               segsAcked = (ackNumber - m_recover) / m_tcb->m_segmentSize;
 
+              m_tcb -> m_bytes_in_flight = BytesInFlight();
               m_congestionControl->PktsAcked (m_tcb, segsAcked, m_lastRtt);
 
               m_congestionControl->CongestionStateSet (m_tcb, TcpSocketState::CA_OPEN);

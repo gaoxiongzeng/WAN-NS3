@@ -306,14 +306,14 @@ void BbrDrainState::execute() {
   NS_LOG_LOGIC(this << " " <<
 	      GetName() <<
 	      "  round: " << m_round_count <<
-	      "  bytes_in_flight: " << m_owner -> m_bytes_in_flight <<
+	      "  bytes_in_flight: " << m_owner -> m_bytes_in_flight_adjusted <<
 	      "  inflight_limit: " << m_inflight_limit);
 
   // See if should exit DRAIN state.
   // Do when byte-in-flight are under limit or 5 rounds
   // have passed (2.89/(1-1/2.89) ~ 4.5), whichever is first.
   m_round_count++;
-  if (m_owner -> m_bytes_in_flight < m_inflight_limit ||
+  if (m_owner -> m_bytes_in_flight_adjusted < m_inflight_limit ||
       m_round_count == 5) {
     NS_LOG_LOGIC(this << " Exiting DRAIN, next state PROBE_BW");
     m_owner -> m_machine.changeState(&m_owner -> m_state_probe_bw);

@@ -175,6 +175,8 @@ public:
   uint32_t               m_initialCWnd;     //!< Initial cWnd value
   uint32_t               m_initialSsThresh; //!< Initial Slow Start Threshold value
 
+  uint32_t               m_bytes_in_flight;   // Bytes in flight.
+
   // Segment
   uint32_t               m_segmentSize;     //!< Segment size
   SequenceNumber32       m_lastAckedSeq;    //!< Last sequence ACKed

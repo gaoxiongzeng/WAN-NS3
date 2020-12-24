@@ -43,7 +43,7 @@ TcpBbr::TcpBbr(void) :
   m_round(0),
   m_delivered(0),
   m_next_round_delivered(0),
-  m_bytes_in_flight(0),
+  m_bytes_in_flight_adjusted(0),
   m_min_rtt_change(Time(0)),
   m_cwnd(0.0),
   m_prior_cwnd(0.0), 
@@ -97,7 +97,7 @@ TcpBbr::TcpBbr(const TcpBbr &sock) :
   m_round(0),
   m_delivered(0),
   m_next_round_delivered(0),
-  m_bytes_in_flight(0),
+  m_bytes_in_flight_adjusted(0),
   m_min_rtt_change(Time(0)),
   m_cwnd(0.0),
   m_prior_cwnd(0.0), 
@@ -174,16 +174,16 @@ void TcpBbr::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t packets_acked,
 
   double target_cwnd = getTargetCwnd();
 
-  // If in Loss Recovery, target cwnd was set in CongestionStateSet().
+  // If in Loss Recovery, modulate cwnd for 1 RTT.
   if (tcb->m_congState >= TcpSocketState::CA_RECOVERY && 
           m_packet_conservation > Simulator::Now()) {
       NS_LOG_LOGIC(this << "  Modulating cwnd until: " <<
                   m_packet_conservation.GetSeconds());
       NS_LOG_LOGIC(this << "  m_cwnd: " << m_cwnd <<
-                  "  bytes_in_flight: " << m_bytes_in_flight <<
+                  "  bytes_in_flight: " << tcb->m_bytes_in_flight <<
                   "  bytes_delivered: " << bytes_delivered);
-      if ((m_bytes_in_flight + bytes_delivered) > m_cwnd)
-        m_cwnd = m_bytes_in_flight + bytes_delivered;
+      if ((tcb->m_bytes_in_flight + bytes_delivered) > m_cwnd)
+        m_cwnd = tcb->m_bytes_in_flight + bytes_delivered;
       m_cwnd = std::min(target_cwnd, m_cwnd);
   } 
 
@@ -362,8 +362,7 @@ void TcpBbr::Send(Ptr<TcpSocketBase> tsb, Ptr<TcpSocketState> tcb,
 
   NS_LOG_FUNCTION(this);
 
-  // Get the bytes in flight (needed for STARTUP/CA_RECOVERY).
-  m_bytes_in_flight = tsb -> BytesInFlight();
+  m_bytes_in_flight_adjusted = tsb->BytesInFlight() - tsb->pacingQueueBytes();
 
   // Get last sequence number ACKed.
   bbr::packet_struct p;
@@ -558,7 +557,7 @@ void TcpBbr::CongestionStateSet(Ptr<TcpSocketState> tcb,
               ", new_state: " <<
               TcpSocketState::TcpCongStateName[new_state]);
     
-  // Enter RTO --> minimal cwnd.
+  // Enter RTO.
   if (new_state == TcpSocketState::CA_LOSS) {
     NS_LOG_LOGIC(this << " Entering RTO (CA_LOSS)");
 
@@ -570,10 +569,11 @@ void TcpBbr::CongestionStateSet(Ptr<TcpSocketState> tcb,
 
     m_cwnd = bbr::MIN_CWND; // bytes
 
-    NS_LOG_LOGIC(this << " cwnd: " << m_cwnd);
+    NS_LOG_LOGIC(this << " cwnd: " << m_cwnd <<
+                "  prior_cwnd: " << m_prior_cwnd);
   }
 
-  // Enter Fast Recovery --> save cwnd.
+  // Enter Fast Recovery.
   // Modulate cwnd for 1 RTT.
   if (new_state == TcpSocketState::CA_RECOVERY) {
     NS_LOG_LOGIC(this << " Entering Fast Recovery (CA_RECOVERY)");
@@ -584,7 +584,7 @@ void TcpBbr::CongestionStateSet(Ptr<TcpSocketState> tcb,
     else
       m_prior_cwnd = std::max(m_prior_cwnd, m_cwnd);
 
-    m_cwnd = m_bytes_in_flight + tcb->m_segmentSize;
+    m_cwnd = tcb->m_bytes_in_flight + tcb->m_segmentSize;
     m_packet_conservation = Simulator::Now() + getRTT(); // Modulate for 1 RTT.
     NS_LOG_LOGIC(this << " m_cwnd: " << m_cwnd <<
                 "  prior_cwnd: " << m_prior_cwnd <<

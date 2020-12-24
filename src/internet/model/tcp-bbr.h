@@ -176,7 +176,7 @@ private:
   std::map<Time, Time> m_rtt_window;       // For computing min RTT.
   std::vector<bbr::bw_struct> m_bw_window; // For computing max BW.
   std::vector<bbr::packet_struct> m_pkt_window; // For estimating BW from ACKs.
-  uint32_t m_bytes_in_flight;              // Bytes in flight (from socket base).
+  uint32_t m_bytes_in_flight_adjusted;     // Bytes in flight excluding pacing queue (from socket base).
   Time m_min_rtt_change;                   // Last time min RTT changed.
   double m_cwnd;                           // Current taraget/max cwnd.
   double m_prior_cwnd;                     // Cwnd prior to Fast Recovery.
