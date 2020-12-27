@@ -163,13 +163,13 @@ uint32_t TcpBbr::GetSsThresh(Ptr<const TcpSocketState> tcb,
 void TcpBbr::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t packets_acked,
                        const Time &rtt) {
 
-  NS_LOG_FUNCTION(this << packets_acked << rtt);
+  NS_LOG_FUNCTION(this << "  packets_acked: " << packets_acked << " rtt: " << rtt);
 
   ////////////////////////////////////////////
   // UPDATE TCP CONGESTION WINDOW (CWND)
 
   // assuming per-packet ack
-  uint32_t bytes_delivered = tcb->m_segmentSize;
+  uint32_t bytes_delivered = packets_acked*tcb->m_segmentSize;
 
   double target_cwnd = getTargetCwnd();
 
