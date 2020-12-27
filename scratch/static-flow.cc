@@ -79,8 +79,8 @@ int main (int argc, char *argv[]) {
   // Note: for BBR', other components that may be
   // of interest include "TcpBbr" and "BbrState".
   LogComponentEnable("main", LOG_LEVEL_INFO);
-  LogComponentEnable("TcpBbr", LOG_LEVEL_INFO);
-  LogComponentEnable("BbrState", LOG_LEVEL_INFO);
+  //LogComponentEnable("TcpBbr", LOG_LEVEL_INFO);
+  //LogComponentEnable("BbrState", LOG_LEVEL_INFO);
 
   /////////////////////////////////////////
   // Setup environment
