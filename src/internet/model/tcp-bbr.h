@@ -35,8 +35,8 @@ namespace bbr {
 enum enum_time_config {WALLCLOCK_TIME, PACKET_TIME};
 
 // Actual configuration option.
-const enum_time_config TIME_CONFIG = PACKET_TIME;
-//const enum_time_config TIME_CONFIG = WALLCLOCK_TIME;
+//const enum_time_config TIME_CONFIG = PACKET_TIME;
+const enum_time_config TIME_CONFIG = WALLCLOCK_TIME;
 
 ///////////////////////////////////////////////////////////////////
 
