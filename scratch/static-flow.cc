@@ -252,7 +252,8 @@ int main (int argc, char *argv[]) {
   double throughput = bottleneck_qdisc.Get (0)->GetStats().nTotalSentPackets*PACKET_SIZE 
                         * 8 / 1000000.0 / (STOP_TIME - START_TIME);
   NS_LOG_INFO("Total bytes received: " << byte_sum);
-  NS_LOG_INFO("Throughput: " << throughput << " Mb/s");
+  if (throughput > goodput_sum/2) // throughput may be incorrect due to wraparound
+    NS_LOG_INFO("Throughput: " << throughput << " Mb/s");
   NS_LOG_INFO("Goodput: " << goodput_sum << " Mb/s");
   NS_LOG_INFO("Done.");
 

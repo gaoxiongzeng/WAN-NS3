@@ -174,8 +174,13 @@ void TcpBbr::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t packets_acked,
   double target_cwnd = getTargetCwnd();
 
   // If in Loss Recovery, modulate cwnd for 1 RTT.
-  if (tcb->m_congState >= TcpSocketState::CA_RECOVERY && 
-          m_packet_conservation > Simulator::Now()) {
+  if (tcb->m_congState == TcpSocketState::CA_RECOVERY) {
+    if (tcb->m_bytes_lost > 0) {
+      NS_LOG_INFO(this << "  Bytes lost: " << tcb->m_bytes_lost);
+      m_cwnd = std::max(m_cwnd - tcb->m_bytes_lost, (double) bbr::MIN_CWND);
+    }
+
+    if(m_packet_conservation > Simulator::Now()) {
       NS_LOG_LOGIC(this << "  Modulating cwnd until: " <<
                   m_packet_conservation.GetSeconds());
       NS_LOG_LOGIC(this << "  m_cwnd: " << m_cwnd <<
@@ -184,6 +189,7 @@ void TcpBbr::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t packets_acked,
       if ((tcb->m_bytes_in_flight + bytes_delivered) > m_cwnd)
         m_cwnd = tcb->m_bytes_in_flight + bytes_delivered;
       m_cwnd = std::min(target_cwnd, m_cwnd);
+    }
   } 
 
   if (m_packet_conservation <= Simulator::Now()) {
@@ -191,7 +197,8 @@ void TcpBbr::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t packets_acked,
     m_cwnd = std::max(m_cwnd, (double) bbr::MIN_CWND);
   }
 
-  tcb -> m_cWnd = (uint32_t) m_cwnd;
+  tcb->m_cWnd = (uint32_t) m_cwnd;
+  tcb->m_bytes_lost = 0;
 
   ////////////////////////////////////////////
   // STORE RTT
@@ -566,8 +573,7 @@ void TcpBbr::CongestionStateSet(Ptr<TcpSocketState> tcb,
     else
       m_prior_cwnd = std::max(m_prior_cwnd, m_cwnd);
 
-    m_cwnd = tcb->m_bytes_in_flight + tcb->m_segmentSize;
-    m_packet_conservation = Simulator::Now() + getRTT(); // Modulate for 1 RTT.
+    m_cwnd = tcb->m_segmentSize;
     NS_LOG_LOGIC(this << " cwnd: " << m_cwnd <<
                 "  prior_cwnd: " << m_prior_cwnd);
   }

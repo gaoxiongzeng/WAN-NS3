@@ -244,6 +244,7 @@ TcpSocketState::TcpSocketState (void)
     m_initialCWnd (0),
     m_initialSsThresh (0),
     m_bytes_in_flight (0),
+    m_bytes_lost (0),
     m_segmentSize (0),
     m_lastAckedSeq (0),
     m_congState (CA_OPEN),
@@ -263,6 +264,7 @@ TcpSocketState::TcpSocketState (const TcpSocketState &other)
     m_initialCWnd (other.m_initialCWnd),
     m_initialSsThresh (other.m_initialSsThresh),
     m_bytes_in_flight (other.m_bytes_in_flight),
+    m_bytes_lost (other.m_bytes_lost),
     m_segmentSize (other.m_segmentSize),
     m_lastAckedSeq (other.m_lastAckedSeq),
     m_congState (other.m_congState),
@@ -1776,6 +1778,8 @@ TcpSocketBase::ProcessAck (const SequenceNumber32 &ackNumber, bool scoreboardUpd
       if (ackNumber < m_recover && m_tcb->m_congState == TcpSocketState::CA_RECOVERY)
         {
           m_txBuffer->DiscardUpTo (ackNumber);
+          if (ENABLE_RACK) 
+            m_tcb->m_bytes_lost += m_txBuffer->CheckRack (m_rtt->GetEstimate());
           DoRetransmit (); // Assume the next seq is lost. Retransmit lost packet
           if (!m_sackEnabled)
             {
@@ -3321,6 +3325,8 @@ TcpSocketBase::NewAck (SequenceNumber32 const& ack, bool resetRTO)
   NS_LOG_LOGIC ("TCP " << this << " NewAck " << ack <<
                 " numberAck " << (ack - m_txBuffer->HeadSequence ())); // Number bytes ack'ed
   m_txBuffer->DiscardUpTo (ack);
+  if (ENABLE_RACK)
+    m_tcb->m_bytes_lost += m_txBuffer->CheckRack (m_rtt->GetEstimate());
   if (GetTxAvailable () > 0)
     {
       NotifySend (GetTxAvailable ());
@@ -3413,7 +3419,9 @@ TcpSocketBase::ReTxTimeout ()
     }
 
   // Cwnd reset (should consider SACK reneging)
-  m_tcb->m_cWnd = std::min((uint32_t)m_tcb->m_ssThresh, m_tcb->m_segmentSize + BytesInFlight());
+  //m_tcb->m_cWnd = std::min((uint32_t)m_tcb->m_ssThresh, m_tcb->m_segmentSize + BytesInFlight());
+  // Cwnd set to 1 MSS
+  m_tcb->m_cWnd = m_tcb->m_segmentSize;
 
   m_congestionControl->CongestionStateSet (m_tcb, TcpSocketState::CA_LOSS);
   m_tcb->m_congState = TcpSocketState::CA_LOSS;
@@ -3826,7 +3834,10 @@ TcpSocketBase::ProcessOptionSack (const Ptr<const TcpOption> option)
 
   Ptr<const TcpOptionSack> s = DynamicCast<const TcpOptionSack> (option);
   TcpOptionSack::SackList list = s->GetSackList ();
-  return m_txBuffer->Update (list);
+  bool ret = m_txBuffer->Update (list);
+  if (ENABLE_RACK)
+    m_tcb->m_bytes_lost += m_txBuffer->CheckRack (m_rtt->GetEstimate());
+  return ret;
 }
 
 void

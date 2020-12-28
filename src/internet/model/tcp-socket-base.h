@@ -35,6 +35,8 @@ const enum_pacing_config PACING_CONFIG = TCP_PACING;
 //const enum_pacing_config PACING_CONFIG = NO_PACING;
 //const enum_pacing_config PACING_CONFIG = APP_PACING;
 
+const bool ENABLE_RACK = true;
+
 const float PACING_VERSION = 1.1;  // See changelog.txt.
 
 // ADDITIONS FOR PACING: END
@@ -176,6 +178,7 @@ public:
   uint32_t               m_initialSsThresh; //!< Initial Slow Start Threshold value
 
   uint32_t               m_bytes_in_flight;   // Bytes in flight.
+  uint32_t               m_bytes_lost;    // Bytes lost detected by rack
 
   // Segment
   uint32_t               m_segmentSize;     //!< Segment size

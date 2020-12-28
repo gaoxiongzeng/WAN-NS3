@@ -603,6 +603,10 @@ TcpTxBuffer::DiscardUpTo (const SequenceNumber32& seq)
       Ptr<Packet> p = item->m_packet;
       pktSize = p->GetSize ();
 
+      // RACK
+      if (rack_time < item->m_lastSent)
+        rack_time = item->m_lastSent;
+
       if (offset >= pktSize)
         { // This packet is behind the seqnum. Remove this packet from the buffer
           m_size -= pktSize;
@@ -703,6 +707,10 @@ TcpTxBuffer::Update (const TcpOptionSack::SackList &list)
                       PacketList::iterator new_it = item_it;
                       m_highestSack = std::make_pair (++new_it, beginOfCurrentPacket+current->GetSize ());
                     }
+
+                  // RACK
+                  if (rack_time < item->m_lastSent)
+                    rack_time = item->m_lastSent;
                 }
               modified = true;
             }
@@ -1033,6 +1041,40 @@ TcpTxBuffer::SetSentListLost ()
     {
       (*it)->m_retrans = false;
     }
+}
+
+uint32_t 
+TcpTxBuffer::CheckRack (Time rtt)
+{
+  NS_LOG_FUNCTION (this);
+
+  uint32_t lost_size = 0;
+
+  Time expired_time = rack_time - rtt/2.0;
+
+  if (rtt <= 0.0 || rack_time <= 0.0 || expired_time <= 0.0)
+    return lost_size;
+
+  PacketList::iterator it;
+
+  for (it = m_sentList.begin (); it != m_sentList.end (); ++it)
+    {
+      if (!(*it)->m_sacked && expired_time > (*it)->m_lastSent) {
+        NS_LOG_DEBUG ("RACK loss detected - expired time: " << expired_time <<
+            " lastSend: " << (*it)->m_lastSent << " retrans: " << (*it)->m_retrans <<
+            " lost: " << (*it)->m_lost);
+
+        if ((*it)->m_retrans) {
+          (*it)->m_lastSent = Simulator::Now();
+          (*it)->m_retrans = false;
+          lost_size += (*it)->m_packet->GetSize();
+        }
+        //else
+          //(*it)->m_lost = true;
+      }
+    }
+
+  return lost_size;
 }
 
 bool

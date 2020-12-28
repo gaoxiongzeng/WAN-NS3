@@ -332,6 +332,9 @@ public:
    */
   Ptr<const TcpOptionSack> CraftSackOption (const SequenceNumber32 &seq, uint8_t available) const;
 
+  // return lost bytes detected by RACK
+  uint32_t CheckRack (Time rtt);
+
 private:
   friend std::ostream & operator<< (std::ostream & os, TcpTxBuffer const & tcpTxBuf);
 
@@ -489,6 +492,7 @@ private:
   uint32_t m_maxBuffer;  //!< Max number of data bytes in buffer (SND.WND)
   uint32_t m_size;       //!< Size of all data in this buffer
   uint32_t m_sentSize;   //!< Size of sent (and not discarded) segments
+  Time rack_time; // Recent sent time of acked pkt
 
   TracedValue<SequenceNumber32> m_firstByteSeq; //!< Sequence number of the first byte in data (SND.UNA)
 
