@@ -1050,7 +1050,7 @@ TcpTxBuffer::CheckRack (Time rtt)
 
   uint32_t lost_size = 0;
 
-  Time expired_time = rack_time - rtt/2.0;
+  Time expired_time = rack_time - rtt;
 
   if (rtt <= 0.0 || rack_time <= 0.0 || expired_time <= 0.0)
     return lost_size;
@@ -1069,8 +1069,11 @@ TcpTxBuffer::CheckRack (Time rtt)
           (*it)->m_retrans = false;
           lost_size += (*it)->m_packet->GetSize();
         }
-        //else
-          //(*it)->m_lost = true;
+        else {
+          (*it)->m_lastSent = Simulator::Now();
+          (*it)->m_lost = true;
+          lost_size += (*it)->m_packet->GetSize();
+        }
       }
     }
 
