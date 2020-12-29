@@ -67,7 +67,7 @@ int main (int argc, char *argv[]) {
 
   CommandLine cmd;
   string tcp_protocol="ns3::TcpBbr";
-  int buffer_size = 10;
+  int buffer_size = 20;
   cmd.AddValue("protocol", "Transport protocol in use", tcp_protocol);
   cmd.AddValue("bSize", "Buffer size in packets", buffer_size);
   cmd.Parse (argc, argv);
@@ -81,6 +81,7 @@ int main (int argc, char *argv[]) {
   LogComponentEnable("main", LOG_LEVEL_INFO);
   //LogComponentEnable("TcpBbr", LOG_LEVEL_INFO);
   //LogComponentEnable("BbrState", LOG_LEVEL_INFO);
+  //LogComponentEnable("TcpTxBuffer", LOG_LEVEL_DEBUG);
 
   /////////////////////////////////////////
   // Setup environment
@@ -100,11 +101,9 @@ int main (int argc, char *argv[]) {
   Config::SetDefault("ns3::TcpSocket::SegmentSize", UintegerValue(PACKET_SIZE)); 
 
   // Turn off delayed ack (so, acks every packet).
-  // Note, BBR' still works without this.
   Config::SetDefault("ns3::TcpSocket::DelAckCount", UintegerValue(0));
 
   // Send buffer and Recv buffer should be large enough for high BDP network.
-  // If FLOW_NUM>10, should reduce simulation memory usage. 
   Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(ENDHOST_BUFFER/FLOW_NUM));
   Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(ENDHOST_BUFFER/FLOW_NUM));
  
