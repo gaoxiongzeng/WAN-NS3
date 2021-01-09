@@ -367,7 +367,7 @@ void BbrProbeBWState::enter() {
   if (PACING_CONFIG == NO_PACING)
     m_owner -> m_cwnd_gain = m_owner -> m_pacing_gain;
   else
-    m_owner -> m_cwnd_gain = bbr::STEADY_FACTOR * 2;
+    m_owner -> m_cwnd_gain = bbr::STEADY_CWND_GAIN;
 }
 
 // Invoked when state updated.
@@ -390,8 +390,8 @@ void BbrProbeBWState::execute() {
     // If configed for NO_PACING, rate is controlled by cwnd at bdp.
     m_owner -> m_cwnd_gain = m_owner -> m_pacing_gain;
   else
-    // Otherwise, cwnd can be twice bdp.
-    m_owner -> m_cwnd_gain = 2 * bbr::STEADY_FACTOR;
+    // Otherwise, cwnd can be STEADY_CWND_GAIN (twice bdp by default).
+    m_owner -> m_cwnd_gain = bbr::STEADY_CWND_GAIN;
 
   // Move to next cycle, wrapping.
   m_gain_cycle++;
