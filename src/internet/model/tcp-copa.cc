@@ -68,7 +68,9 @@ void TcpCopa::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
   auto srtt = srttEstimator.GetEstimate();
 
   if (srtt.IsNegative()) {
-    NS_LOG_DEBUG(this << " srtt is negative: " << srtt);
+    // seems like a bug in srttEstimator?
+    NS_LOG_DEBUG(this << " lrtt: " << lrtt << " srtt is negative: " << srtt);
+    srttEstimator.Reset(); 
     return;
   }
 
@@ -104,18 +106,12 @@ void TcpCopa::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
   }
 
   if (increaseCwnd) {
-    if (isSlowStart) {
+    if (isSlowStart)
       // When a flow starts, Copa performs slow-start where
       // cwnd doubles once per RTT until current rate exceeds target rate.
-      if (!lastCwndDoubleTimestampHasValue) {
-        lastCwndDoubleTimestamp = Simulator::Now();
-        lastCwndDoubleTimestampHasValue = true;
-      } else if (Simulator::Now() - lastCwndDoubleTimestamp > srtt) {
-        tcb->m_cWnd += tcb->m_cWnd;
-        lastCwndDoubleTimestamp = Simulator::Now();
-      }
+      tcb->m_cWnd += segmentsAcked * tcb->m_segmentSize;
 
-    } else {
+    else {
       if (velocity.direction != Velocity::Direction::Up &&
           velocity.value > 1.0) {
         ChangeDirection(tcb, Velocity::Direction::Up);
@@ -150,11 +146,17 @@ void TcpCopa::CheckAndUpdateDirection(Ptr<TcpSocketState> tcb) {
     return;
   }
 
-  auto elapsedTime = Simulator::Now() - velocity.lastCwndTimestamp;
+  auto srtt = srttEstimator.GetEstimate();
 
-  if (elapsedTime < srttEstimator.GetEstimate()) {
+  if (srtt.IsNegative()) {
+    NS_LOG_DEBUG(this << " CheckDirection - srtt is negative: " << srtt);
     return;
   }
+
+  auto elapsedTime = Simulator::Now() - velocity.lastCwndTimestamp;
+
+  if (elapsedTime < srtt)
+    return;
 
   auto newDirection = tcb->m_cWnd > velocity.lastCwnd
                           ? Velocity::Direction::Up

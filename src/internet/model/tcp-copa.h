@@ -150,8 +150,6 @@ private:
   Velocity velocity;
 
   bool isSlowStart = true;
-  Time lastCwndDoubleTimestamp;
-  bool lastCwndDoubleTimestampHasValue = false;
 
   void CheckAndUpdateDirection(Ptr<TcpSocketState> tcb);
 
