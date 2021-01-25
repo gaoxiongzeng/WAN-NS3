@@ -162,20 +162,27 @@ void TcpCopa::CheckAndUpdateDirection(Ptr<TcpSocketState> tcb) {
                           ? Velocity::Direction::Up
                           : Velocity::Direction::Down;
 
+  bool optimizedVelocity = true;
+
   if (newDirection == velocity.direction) {
     // if direction is the same as in the previous window, then double v.
     velocity.numDirectionRemainedSame += 1;
     uint64_t velocityDirectionThreshold = 3;
     // However, start doubling v only after the direction
     // has remained the same for three RTTs.
-    if (velocity.numDirectionRemainedSame >= velocityDirectionThreshold) {
+    if (velocity.numDirectionRemainedSame > velocityDirectionThreshold) {
       velocity.value *= 2;
-      velocity.numDirectionRemainedSame = 0;
+      //if (optimizedVelocity)
+      //  velocity.numDirectionRemainedSame = 0;
     }
 
   } else {
-    // If not, then reset v to 1.
-    velocity.value = 1.0;
+    // If not, then reduce v back to 1.
+    if (optimizedVelocity && velocity.value > 1.0)
+      velocity.value /= 2;
+    else
+      velocity.value = 1.0;
+    
     velocity.numDirectionRemainedSame = 0;
   }
 
