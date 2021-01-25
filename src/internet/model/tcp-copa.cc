@@ -57,25 +57,28 @@ void TcpCopa::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
 
   auto lrtt = rtt; // Last rtt
 
+  minRttFilter.SetWindowLength(lrtt.Max());
+  minRttFilter.Update(lrtt);
+  auto rttMin = minRttFilter.GetBest();
+
   // 1. Update the queuing delay dq using Eq. (2) and srtt
   //    using the standard TCP exponentially weighted
   //    moving average estimator.
   srttEstimator.Measurement(lrtt);
   auto srtt = srttEstimator.GetEstimate();
 
-  minRttFilter.SetWindowLength(srtt * 1000);
-  minRttFilter.Update(lrtt);
-  auto rttMin = minRttFilter.GetBest();
-
-  standingRttFilter.SetWindowLength(srtt / 2);
-  standingRttFilter.Update(rtt);
-  auto rttStanding = standingRttFilter.GetBest();
-
-  if (rttStanding < rttMin || rttStanding.IsZero()) {
-    NS_LOG_DEBUG("delay is negative, rttStanding=" << rttStanding
-                                                   << " rttMin=" << rttMin);
+  if (srtt.IsNegative()) {
+    NS_LOG_DEBUG(this << " srtt is negative: " << srtt);
     return;
   }
+
+  standingRttFilter.SetWindowLength(srtt / 2);
+  standingRttFilter.Update(lrtt);
+  auto rttStanding = standingRttFilter.GetBest();
+
+  NS_LOG_INFO(this << " lrtt: " << lrtt << " srtt: " << srtt 
+                                        << " rttMin: " << rttMin
+                                        << " rttStanding: " << rttStanding);
 
   Time delay = rttStanding - rttMin;
 
