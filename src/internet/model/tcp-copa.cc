@@ -168,8 +168,9 @@ void TcpCopa::CheckAndUpdateDirection(Ptr<TcpSocketState> tcb) {
     uint64_t velocityDirectionThreshold = 3;
     // However, start doubling v only after the direction
     // has remained the same for three RTTs.
-    if (velocity.numDirectionRemainedSame > velocityDirectionThreshold) {
+    if (velocity.numDirectionRemainedSame >= velocityDirectionThreshold) {
       velocity.value *= 2;
+      velocity.numDirectionRemainedSame = 0;
     }
 
   } else {
