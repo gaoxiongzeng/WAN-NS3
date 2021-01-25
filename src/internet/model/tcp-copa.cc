@@ -172,8 +172,8 @@ void TcpCopa::CheckAndUpdateDirection(Ptr<TcpSocketState> tcb) {
     // has remained the same for three RTTs.
     if (velocity.numDirectionRemainedSame > velocityDirectionThreshold) {
       velocity.value *= 2;
-      //if (optimizedVelocity)
-      //  velocity.numDirectionRemainedSame = 0;
+      if (optimizedVelocity)
+        velocity.numDirectionRemainedSame = 0;
     }
 
   } else {
