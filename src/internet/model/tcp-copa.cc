@@ -60,16 +60,15 @@ void TcpCopa::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
   // 1. Update the queuing delay dq using Eq. (2) and srtt
   //    using the standard TCP exponentially weighted
   //    moving average estimator.
-  minRttFilter.Update(lrtt);
-  auto rttMin = minRttFilter.GetBest();
-
   srttEstimator.Measurement(lrtt);
   auto srtt = srttEstimator.GetEstimate();
 
+  minRttFilter.SetWindowLength(srtt * 1000);
+  minRttFilter.Update(lrtt);
+  auto rttMin = minRttFilter.GetBest();
+
   standingRttFilter.SetWindowLength(srtt / 2);
-
   standingRttFilter.Update(rtt);
-
   auto rttStanding = standingRttFilter.GetBest();
 
   if (rttStanding < rttMin || rttStanding.IsZero()) {
