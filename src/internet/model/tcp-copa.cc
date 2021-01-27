@@ -167,7 +167,7 @@ void TcpCopa::CheckAndUpdateDirection(Ptr<TcpSocketState> tcb) {
                           ? Velocity::Direction::Up
                           : Velocity::Direction::Down;
 
-  bool optimizedVelocity = true;
+  bool optimizedVelocity = false;
 
   if (newDirection == velocity.direction) {
     // if direction is the same as in the previous window, then double v.
