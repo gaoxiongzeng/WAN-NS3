@@ -146,7 +146,7 @@ private:
   WindowedFilter<Time, MinFilter<Time>> standingRttFilter;
   RttMeanDeviation srttEstimator;
 
-  double delta = 1; // default 0.5
+  double delta = 0.5; // default 0.5
   Velocity velocity;
 
   bool isSlowStart = true;

@@ -137,6 +137,11 @@ void TcpCopa::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
     isSlowStart = false;
     NS_LOG_INFO(Simulator::Now() << " isSlowStart goes to false");
   }
+
+  // Set pacing rate (in Mb/s).
+  bool enablePacing = true;
+  if (enablePacing)
+    tcb -> SetPacingRate(2 * tcb->m_cWnd * 8 / rttStanding.GetMicroSeconds());
 }
 
 void TcpCopa::CheckAndUpdateDirection(Ptr<TcpSocketState> tcb) {
