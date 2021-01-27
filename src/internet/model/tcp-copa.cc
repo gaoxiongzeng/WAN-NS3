@@ -139,7 +139,7 @@ void TcpCopa::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
   }
 
   // Set pacing rate (in Mb/s).
-  bool enablePacing = true;
+  bool enablePacing = false;
   if (enablePacing)
     tcb -> SetPacingRate(2 * tcb->m_cWnd * 8 / rttStanding.GetMicroSeconds());
 }
@@ -167,7 +167,7 @@ void TcpCopa::CheckAndUpdateDirection(Ptr<TcpSocketState> tcb) {
                           ? Velocity::Direction::Up
                           : Velocity::Direction::Down;
 
-  bool optimizedVelocity = false;
+  bool optimizedVelocity = true;
 
   if (newDirection == velocity.direction) {
     // if direction is the same as in the previous window, then double v.
