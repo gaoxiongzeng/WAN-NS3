@@ -101,7 +101,7 @@ void TcpCopa::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
   }
 
   if (!(increaseCwnd && isSlowStart)) {
-    // change direction
+    // Update direction except for the case where we are in slow start mode
     CheckAndUpdateDirection(tcb);
   }
 
@@ -139,7 +139,6 @@ void TcpCopa::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
   }
 
   // Set pacing rate (in Mb/s).
-  bool enablePacing = false;
   if (enablePacing)
     tcb -> SetPacingRate(2 * tcb->m_cWnd * 8 / rttStanding.GetMicroSeconds());
 }
@@ -166,8 +165,6 @@ void TcpCopa::CheckAndUpdateDirection(Ptr<TcpSocketState> tcb) {
   auto newDirection = tcb->m_cWnd > velocity.lastCwnd
                           ? Velocity::Direction::Up
                           : Velocity::Direction::Down;
-
-  bool optimizedVelocity = true;
 
   if (newDirection == velocity.direction) {
     // if direction is the same as in the previous window, then double v.
@@ -201,8 +198,14 @@ void TcpCopa::ChangeDirection(Ptr<TcpSocketState> tcb,
   if (velocity.direction == newDirection) {
     return;
   }
+  
   velocity.direction = newDirection;
-  velocity.value = 1.0;
+  
+  if (optimizedVelocity && velocity.value > 1.0) {
+    velocity.value /= 2; 
+  } else
+    velocity.value = 1.0;
+  
   velocity.numDirectionRemainedSame = 0;
   velocity.lastCwnd = tcb->m_cWnd;
   velocity.lastCwndTimestamp = Simulator::Now();
