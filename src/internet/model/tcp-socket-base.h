@@ -35,7 +35,7 @@ const enum_pacing_config PACING_CONFIG = TCP_PACING;
 //const enum_pacing_config PACING_CONFIG = NO_PACING;
 //const enum_pacing_config PACING_CONFIG = APP_PACING;
 
-const bool ENABLE_RACK = true;
+const bool ENABLE_RACK = false;
 
 const float PACING_VERSION = 1.1;  // See changelog.txt.
 
