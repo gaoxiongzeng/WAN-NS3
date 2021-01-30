@@ -4,6 +4,8 @@
 #include "ns3/rtt-estimator.h"
 #include "ns3/tcp-congestion-ops.h"
 
+#include <algorithm>
+
 namespace ns3 {
 
 // Implements Kathleen Nichols' algorithm for tracking the minimum (or maximum)
@@ -142,13 +144,59 @@ private:
     Time lastCwndTimestamp;
   };
 
+  class Delta {
+  public:
+    enum class DeltaMode { Default, Competitive };
+
+    double DEFAULT_DELTA = 0.5;
+
+    double Get() const { return delta; }
+
+    void Update(Time delay, Time rttMax, Time rttMin, Time lrtt, bool loss) {
+      DeltaMode newMode;
+      Time now = Simulator::Now();
+
+      newMode = delay < 0.1 * (rttMax - rttMin) ? DeltaMode::Default
+                                                : DeltaMode::Competitive;
+
+      if (newMode == DeltaMode::Default) {
+        if (prevUpdateTime.IsZero() || prevDecreaseTime + lrtt < now) {
+          delta = DEFAULT_DELTA;
+          prevUpdateTime = now;
+        }
+      } else if (newMode == DeltaMode::Competitive) {
+        if (loss && prevDecreaseTime + lrtt < now) {
+          delta *= 2;
+          prevDecreaseTime = now;
+        } else if (prevUpdateTime + lrtt < now) {
+          delta = 1.0 / (1.0 / delta + 1.0);
+          prevUpdateTime = now;
+        }
+        delta = std::min(delta, DEFAULT_DELTA);
+      }
+
+      mode = newMode;
+    }
+
+  private:
+    double delta = DEFAULT_DELTA;
+    DeltaMode mode = DeltaMode::Default;
+
+    Time prevUpdateTime;
+    Time prevDecreaseTime;
+  };
+
+  bool enableModeSwitcher;
+
+  WindowedFilter<Time, MaxFilter<Time>> maxRttFilter;
   WindowedFilter<Time, MinFilter<Time>> minRttFilter;
   WindowedFilter<Time, MinFilter<Time>> standingRttFilter;
   RttMeanDeviation srttEstimator;
 
-  double delta = 0.5; // default 0.5
+  Delta delta; // default 0.5
   bool optimizedVelocity = true;
   bool enablePacing = false;
+  Time lrtt;
 
   Velocity velocity;
 

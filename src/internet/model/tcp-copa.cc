@@ -12,22 +12,29 @@ namespace ns3 {
 NS_OBJECT_ENSURE_REGISTERED(TcpCopa);
 
 TypeId TcpCopa::GetTypeId(void) {
-  static TypeId tid = TypeId("ns3::TcpCopa")
-                          .SetParent<TcpCongestionOps>()
-                          .SetGroupName("Internet")
-                          .AddConstructor<TcpCopa>();
+  static TypeId tid =
+      TypeId("ns3::TcpCopa")
+          .SetParent<TcpCongestionOps>()
+          .SetGroupName("Internet")
+          .AddConstructor<TcpCopa>()
+          .AddAttribute("EnableModeSwitcher",
+                        "Turn on/off Copa's mode switcher between default and "
+                        "competitive mode.",
+                        BooleanValue(false),
+                        MakeBooleanAccessor(&TcpCopa::enableModeSwitcher),
+                        MakeBooleanChecker());
   return tid;
 }
 
 TcpCopa::TcpCopa(void)
-    : TcpCongestionOps(), minRttFilter(Seconds(10)),
-      standingRttFilter(MilliSeconds(100)) {
+    : TcpCongestionOps(), maxRttFilter(MilliSeconds(100)),
+      minRttFilter(Seconds(10)), standingRttFilter(MilliSeconds(100)) {
   NS_LOG_FUNCTION(this);
 }
 
 TcpCopa::TcpCopa(const TcpCopa &sock)
-    : TcpCongestionOps(sock), minRttFilter(Seconds(10)),
-      standingRttFilter(MilliSeconds(100)) {
+    : TcpCongestionOps(sock), maxRttFilter(MilliSeconds(100)),
+      minRttFilter(Seconds(10)), standingRttFilter(MilliSeconds(100)) {
   NS_LOG_FUNCTION(this);
 }
 
@@ -55,7 +62,7 @@ void TcpCopa::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
                         const Time &rtt) {
   // subtractAndCheckUnderflow(conn_.lossState.inflightBytes, ack.ackedBytes);
 
-  auto lrtt = rtt; // Last rtt
+  lrtt = rtt; // Last rtt
 
   minRttFilter.SetWindowLength(lrtt.Max());
   minRttFilter.Update(lrtt);
@@ -70,7 +77,7 @@ void TcpCopa::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
   if (srtt.IsNegative()) {
     // seems like a bug in srttEstimator?
     NS_LOG_DEBUG(this << " lrtt: " << lrtt << " srtt is negative: " << srtt);
-    srttEstimator.Reset(); 
+    srttEstimator.Reset();
     return;
   }
 
@@ -78,11 +85,20 @@ void TcpCopa::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
   standingRttFilter.Update(lrtt);
   auto rttStanding = standingRttFilter.GetBest();
 
-  NS_LOG_INFO(this << " lrtt: " << lrtt << " srtt: " << srtt 
-                                        << " rttMin: " << rttMin
-                                        << " rttStanding: " << rttStanding);
+  // RTTmax is measured over the past four RTTs
+  maxRttFilter.SetWindowLength(srtt * 4);
+  maxRttFilter.Update(lrtt);
+  auto rttMax = maxRttFilter.GetBest();
+
+  NS_LOG_INFO(this << " lrtt: " << lrtt << " srtt: " << srtt
+                   << " rttMax: " << rttMax << " rttMin: " << rttMin
+                   << " rttStanding: " << rttStanding);
 
   Time delay = rttStanding - rttMin;
+
+  if (enableModeSwitcher) {
+    delta.Update(delay, rttMax, rttMin, lrtt, false);
+  }
 
   bool increaseCwnd = false;
 
@@ -91,13 +107,13 @@ void TcpCopa::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
   } else {
     // 2. Set λt =1/(δ ·dq) according to Eq. (1).
     auto targetRate = (1.0 * tcb->m_segmentSize * 1000000) /
-                      (delta * delay.GetMicroSeconds());
+                      (delta.Get() * delay.GetMicroSeconds());
     auto currentRate =
         (1.0 * tcb->m_cWnd * 1000000) / rttStanding.GetMicroSeconds();
     increaseCwnd = targetRate >= currentRate;
     NS_LOG_INFO("increaseCwnd=" << (increaseCwnd ? "true" : "false")
-                                 << " targetRate=" << targetRate
-                                 << " currentRate=" << currentRate);
+                                << " targetRate=" << targetRate
+                                << " currentRate=" << currentRate);
   }
 
   if (!(increaseCwnd && isSlowStart)) {
@@ -118,7 +134,7 @@ void TcpCopa::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
       }
       uint32_t addition = (segmentsAcked * tcb->m_segmentSize *
                            tcb->m_segmentSize * velocity.value) /
-                          (delta * tcb->m_cWnd);
+                          (delta.Get() * tcb->m_cWnd);
       tcb->m_cWnd += addition;
     }
   } else {
@@ -128,7 +144,7 @@ void TcpCopa::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
     }
     uint32_t reduction = (segmentsAcked * tcb->m_segmentSize *
                           tcb->m_segmentSize * velocity.value) /
-                         (delta * tcb->m_cWnd);
+                         (delta.Get() * tcb->m_cWnd);
     if (tcb->m_initialCWnd + reduction > tcb->m_cWnd) {
       tcb->m_cWnd = tcb->m_initialCWnd;
     } else {
@@ -140,7 +156,7 @@ void TcpCopa::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
 
   // Set pacing rate (in Mb/s).
   if (enablePacing)
-    tcb -> SetPacingRate(2 * tcb->m_cWnd * 8 / rttStanding.GetMicroSeconds());
+    tcb->SetPacingRate(2 * tcb->m_cWnd * 8 / rttStanding.GetMicroSeconds());
 }
 
 void TcpCopa::CheckAndUpdateDirection(Ptr<TcpSocketState> tcb) {
@@ -184,7 +200,7 @@ void TcpCopa::CheckAndUpdateDirection(Ptr<TcpSocketState> tcb) {
       velocity.value /= 2;
     else
       velocity.value = 1.0;
-    
+
     velocity.numDirectionRemainedSame = 0;
   }
 
@@ -198,14 +214,14 @@ void TcpCopa::ChangeDirection(Ptr<TcpSocketState> tcb,
   if (velocity.direction == newDirection) {
     return;
   }
-  
+
   velocity.direction = newDirection;
-  
+
   if (optimizedVelocity && velocity.value > 1.0) {
-    velocity.value /= 2; 
+    velocity.value /= 2;
   } else
     velocity.value = 1.0;
-  
+
   velocity.numDirectionRemainedSame = 0;
   velocity.lastCwnd = tcb->m_cWnd;
   velocity.lastCwndTimestamp = Simulator::Now();
@@ -217,7 +233,13 @@ void TcpCopa::CongestionStateSet(
   // congestion signal and lost packets only impact Copa to
   // the extent that they occupy wasted transmission slots in
   // the congestion window.
-  return;
+  if (enableModeSwitcher && newState == TcpSocketState::CA_LOSS) {
+    auto rttMin = minRttFilter.GetBest();
+    auto rttMax = maxRttFilter.GetBest();
+    auto rttStanding = standingRttFilter.GetBest();
+    auto delay = rttStanding - rttMin;
+    delta.Update(delay, rttMax, rttMin, lrtt, true);
+  }
 }
 
 Ptr<TcpCongestionOps> TcpCopa::Fork(void) { return CopyObject<TcpCopa>(this); }
