@@ -20,7 +20,7 @@ TypeId TcpCopa::GetTypeId(void) {
           .AddAttribute("EnableModeSwitcher",
                         "Turn on/off Copa's mode switcher between default and "
                         "competitive mode.",
-                        BooleanValue(false),
+                        BooleanValue(true),
                         MakeBooleanAccessor(&TcpCopa::enableModeSwitcher),
                         MakeBooleanChecker());
   return tid;
