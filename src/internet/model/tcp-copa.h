@@ -148,7 +148,7 @@ private:
   public:
     enum class DeltaMode { Default, Competitive };
 
-    double DEFAULT_DELTA = 5;
+    double DEFAULT_DELTA = 0.5;
 
     double Get() const { return delta; }
 
@@ -157,7 +157,7 @@ private:
       Time now = Simulator::Now();
 
       // check the 'nearly empty' queueing condition
-      newMode = delay < (rttMax - rttMin) / 10 ? DeltaMode::Default
+      newMode = delay < (rttMax - rttMin) / 2 ? DeltaMode::Default
                                                 : DeltaMode::Competitive;
 
       if (newMode == DeltaMode::Default) {
@@ -199,7 +199,7 @@ private:
 
   Delta delta; // default 0.5
   bool optimizedVelocity = true;
-  bool enablePacing = false;
+  bool enablePacing = true;
   Time lrtt;
 
   Velocity velocity;
