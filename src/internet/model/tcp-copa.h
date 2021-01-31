@@ -156,26 +156,29 @@ private:
       DeltaMode newMode;
       Time now = Simulator::Now();
 
-      newMode = delay < 0.1 * (rttMax - rttMin) ? DeltaMode::Default
+      // check the 'nearly empty' queueing condition
+      newMode = delay < (rttMax - rttMin) / 10 ? DeltaMode::Default
                                                 : DeltaMode::Competitive;
 
       if (newMode == DeltaMode::Default) {
-        if (prevUpdateTime.IsZero() || prevDecreaseTime + lrtt < now) {
+          competitiveModeCounter = 0;
+          prevUpdateTime = now;
           delta = DEFAULT_DELTA;
-          prevUpdateTime = now;
+      } else if (newMode == DeltaMode::Competitive && prevUpdateTime + lrtt < now) {
+        competitiveModeCounter++; 
+        prevUpdateTime = now;   
+        if (competitiveModeCounter >= 5) {
+          if (loss)
+            delta *= 2;
+          else
+            delta = 1.0 / (1.0 / delta + 1.0);
+          delta = std::min(delta, DEFAULT_DELTA);
         }
-      } else if (newMode == DeltaMode::Competitive) {
-        if (loss && prevDecreaseTime + lrtt < now) {
-          delta *= 2;
-          prevDecreaseTime = now;
-        } else if (prevUpdateTime + lrtt < now) {
-          delta = 1.0 / (1.0 / delta + 1.0);
-          prevUpdateTime = now;
-        }
-        delta = std::min(delta, DEFAULT_DELTA);
       }
 
       mode = newMode;
+
+      //std::cout << "mode: " << (mode==DeltaMode::Default) << " delta: " << delta << std::endl;
     }
 
   private:
@@ -183,7 +186,8 @@ private:
     DeltaMode mode = DeltaMode::Default;
 
     Time prevUpdateTime;
-    Time prevDecreaseTime;
+
+    uint32_t competitiveModeCounter = 0;
   };
 
   bool enableModeSwitcher;

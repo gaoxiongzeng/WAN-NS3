@@ -20,7 +20,7 @@ TypeId TcpCopa::GetTypeId(void) {
           .AddAttribute("EnableModeSwitcher",
                         "Turn on/off Copa's mode switcher between default and "
                         "competitive mode.",
-                        BooleanValue(true),
+                        BooleanValue(false),
                         MakeBooleanAccessor(&TcpCopa::enableModeSwitcher),
                         MakeBooleanChecker());
   return tid;
@@ -97,7 +97,7 @@ void TcpCopa::PktsAcked(Ptr<TcpSocketState> tcb, uint32_t segmentsAcked,
   Time delay = rttStanding - rttMin;
 
   if (enableModeSwitcher) {
-    delta.Update(delay, rttMax, rttMin, lrtt, false);
+    delta.Update(delay, rttMax, rttMin, lrtt, tcb->m_congState >= TcpSocketState::CA_RECOVERY);
   }
 
   bool increaseCwnd = false;
@@ -233,7 +233,7 @@ void TcpCopa::CongestionStateSet(
   // congestion signal and lost packets only impact Copa to
   // the extent that they occupy wasted transmission slots in
   // the congestion window.
-  if (enableModeSwitcher && newState == TcpSocketState::CA_LOSS) {
+  if (enableModeSwitcher && newState >= TcpSocketState::CA_RECOVERY) {
     auto rttMin = minRttFilter.GetBest();
     auto rttMax = maxRttFilter.GetBest();
     auto rttStanding = standingRttFilter.GetBest();
