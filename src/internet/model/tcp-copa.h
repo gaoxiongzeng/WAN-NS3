@@ -148,7 +148,7 @@ private:
   public:
     enum class DeltaMode { Default, Competitive };
 
-    double DEFAULT_DELTA = 0.5;
+    double DEFAULT_DELTA = 5;
 
     double Get() const { return delta; }
 
