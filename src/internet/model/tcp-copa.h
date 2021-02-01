@@ -199,7 +199,7 @@ private:
 
   Delta delta; // default 0.5
   bool optimizedVelocity = true;
-  bool enablePacing = true;
+  bool enablePacing = false;
   Time lrtt;
 
   Velocity velocity;
