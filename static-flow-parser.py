@@ -11,7 +11,7 @@ def parse(file):
   end_loss = -1
   throughput_sum = 0.0
   queue_sum = 0
-  ignored_line = 50 # ignore slow start phase
+  ignored_line = 2000 # ignore slow start phase
   for each in lines:
     count_line += 1
     if count_line < ignored_line: 
