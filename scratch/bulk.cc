@@ -29,18 +29,20 @@ using namespace ns3;
 // Constants.
 #define ENABLE_PCAP      true     // Set to "true" to enable pcap
 #define ENABLE_TRACE     true     // Set to "true" to enable trace
-#define QUEUE_SIZE       1000       // Packets
+#define BIG_QUEUE        2000      // Packets
+#define QUEUE_SIZE       100       // Packets
 #define START_TIME       0.0       // Seconds
 #define STOP_TIME        5.0       // Seconds
 #define S_TO_R_BW        "150Mbps" // Server to router
 #define S_TO_R_DELAY     "10ms"
 #define R_TO_C_BW        "10Mbps"  // Router to client (bttlneck)
 #define R_TO_C_DELAY     "1ms"
-#define PACKET_SIZE      1448      // Bytes.
+#define PACKET_SIZE      1000      // Bytes.
 
 // Uncomment one of the below.
-#define TCP_PROTOCOL     "ns3::TcpCubic"
+//#define TCP_PROTOCOL     "ns3::TcpCubic"
 //#define TCP_PROTOCOL     "ns3::TcpBbr"
+#define TCP_PROTOCOL     "ns3::TcpCopa"
 
 // For logging. 
 
@@ -53,6 +55,7 @@ int main (int argc, char *argv[]) {
   // Note: for BBR', other components that may be
   // of interest include "TcpBbr" and "BbrState".
   LogComponentEnable("main", LOG_LEVEL_INFO);
+  // LogComponentEnable("TcpCopa", LOG_LEVEL_INFO);
 
   /////////////////////////////////////////
   // Setup environment
@@ -74,10 +77,6 @@ int main (int argc, char *argv[]) {
   // Turn off delayed ack (so, acks every packet).
   // Note, BBR' still works without this.
   Config::SetDefault("ns3::TcpSocket::DelAckCount", UintegerValue(0));
-
-  // Send buffer and Recv buffer should be large enough for high BDP network.
-  Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(100000000));
-  Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(100000000));
    
   /////////////////////////////////////////
   // Create nodes.

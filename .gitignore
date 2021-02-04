@@ -1,2 +1,6 @@
 
 .DS_Store
+scratch/bulk.cc
+*.o
+trace-generator/trace_generator
+trace-generator/log
