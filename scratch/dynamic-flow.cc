@@ -76,7 +76,7 @@ int main (int argc, char *argv[]) {
   string trace_file_name = "trace-generator/trace_file/ali-wan-0.6load.trace";
   cmd.AddValue("protocol", "Transport protocol in use", tcp_protocol);
   cmd.AddValue("bSize", "Buffer size in packets", buffer_size);
-  cmd.AddValue("traceFile", "traffic demand trace file", trace_file_name);
+  cmd.AddValue("traceFile", "Traffic demand trace file", trace_file_name);
   cmd.Parse (argc, argv);
 
   string file_prefix = tcp_protocol+"-buf"+to_string(buffer_size);
@@ -289,7 +289,7 @@ int main (int argc, char *argv[]) {
   NS_LOG_INFO("Goodput: " << goodput_sum << " Mb/s");
   NS_LOG_INFO("Done.");
 
-  flowMonitor->SerializeToXmlFile(flowMonitorFilename.str (), true, true);
+  flowMonitor->SerializeToXmlFile(file_prefix+flowMonitorFilename.str (), true, true);
 
   // Done.
   Simulator::Destroy();
