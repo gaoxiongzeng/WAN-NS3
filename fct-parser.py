@@ -239,10 +239,10 @@ def parse (fileName):
     small_index_99 = int(len(small_flow_list) * 0.99)
     if small_flow_list:
         small_flow_fct_99 = small_flow_list[small_index_99].fct
+        print "Small flow 99 FCT: %.4f" % small_flow_fct_99
+        #print "Max small flow Id: %i" % max_small_flow_id
     else:
         small_flow_fct_99 = -1.0
-    print "Small flow 99 FCT: %.4f" % small_flow_fct_99
-    #print "Max small flow Id: %i" % max_small_flow_id
 
     if middle_flow_count == 0:
         print "No middle flows"
