@@ -289,7 +289,7 @@ int main (int argc, char *argv[]) {
   NS_LOG_INFO("Goodput: " << goodput_sum << " Mb/s");
   NS_LOG_INFO("Done.");
 
-  flowMonitor->SerializeToXmlFile(file_prefix+flowMonitorFilename.str (), true, true);
+  flowMonitor->SerializeToXmlFile(file_prefix+"-"+flowMonitorFilename.str (), true, true);
 
   // Done.
   Simulator::Destroy();
