@@ -3384,9 +3384,9 @@ TcpSocketBase::ReTxTimeout ()
       // Please note that BytesInFlight should reflect the fact that all our
       // sent list is considered lost. The following line could be a start,
       // but we miss tests for reneging right now. So, be safe.
-      m_txBuffer->SetSentListLost ();
+      //m_txBuffer->SetSentListLost ();
       
-      //m_txBuffer->ResetSentList ();
+      m_txBuffer->ResetSentList ();
     }
 
   // From RFC 6675, Section 5.1
